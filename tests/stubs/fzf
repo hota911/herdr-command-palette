@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Palette tests provide one command, so selecting the first input line models
+# accepting that command in the main picker.
+sed -n '1p'

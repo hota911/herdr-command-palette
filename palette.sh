@@ -22,8 +22,8 @@ die() {
   exit 1
 }
 
-# resolve_context maps a context key to the ORIGIN_* value captured by open.sh.
-# Prints the value and returns 0, or returns 1 for an unknown key.
+# resolve_context maps a static context key to the ORIGIN_* value captured by
+# open.sh. Prints the value and returns 0, or returns 1 for an unknown key.
 resolve_context() {
   case "$1" in
     pane_id) printf '%s' "$ORIGIN_PANE_ID" ;;
@@ -32,6 +32,65 @@ resolve_context() {
     cwd) printf '%s' "$ORIGIN_CWD" ;;
     *) return 1 ;;
   esac
+}
+
+# resolve_computed_context derives a neighboring resource ID from the ordered
+# list returned by herdr and stores it in the global $value. It runs in the
+# main shell so die() terminates the palette rather than a subshell.
+resolve_computed_context() {
+  computed_key="$1"
+
+  case "$computed_key" in
+    next_workspace_id)
+      direction="next"
+      list_desc="workspace list"
+      collection="workspaces"
+      id_field="workspace_id"
+      origin_id="$ORIGIN_WORKSPACE_ID"
+      raw=$("$herdr_bin" workspace list 2>&1)
+      rc=$?
+      ;;
+    previous_workspace_id)
+      direction="previous"
+      list_desc="workspace list"
+      collection="workspaces"
+      id_field="workspace_id"
+      origin_id="$ORIGIN_WORKSPACE_ID"
+      raw=$("$herdr_bin" workspace list 2>&1)
+      rc=$?
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  if [ "$rc" -ne 0 ]; then
+    die "command-palette: herdr $list_desc failed:"$'\n'"$raw"
+  fi
+  if ! printf '%s' "$raw" | jq -e --arg collection "$collection" \
+    '.result[$collection] | type == "array"' >/dev/null 2>&1; then
+    die "command-palette: herdr $list_desc returned an unexpected shape"
+  fi
+  if printf '%s' "$raw" | jq -e --arg collection "$collection" --arg field "$id_field" '
+    [.result[$collection][] | select(.[$field] == null or .[$field] == "")] | length > 0
+  ' >/dev/null 2>&1; then
+    die "command-palette: herdr $list_desc returned a candidate without $id_field"
+  fi
+
+  if ! value=$(printf '%s' "$raw" | jq -er \
+    --arg collection "$collection" \
+    --arg field "$id_field" \
+    --arg origin "$origin_id" \
+    --arg direction "$direction" '
+      [.result[$collection][][ $field ]] as $ids
+      | ($ids | index($origin)) as $index
+      | if $index == null then empty
+        elif $direction == "next" then $ids[(($index + 1) % ($ids | length))]
+        else $ids[(($index + ($ids | length) - 1) % ($ids | length))]
+        end
+    '); then
+    die "command-palette: herdr $list_desc did not include the origin $id_field"
+  fi
 }
 
 # fetch_workspace_list_for_labels runs `herdr workspace list` and validates
@@ -116,9 +175,16 @@ while [ "$i" -lt "$argc" ]; do
 
     context)
       key=$(jq -r '.key' <<<"$arg_def")
-      if ! value=$(resolve_context "$key"); then
-        die "command-palette: unexpected context key: $key"
-      fi
+      case "$key" in
+        next_workspace_id|previous_workspace_id)
+          resolve_computed_context "$key"
+          ;;
+        *)
+          if ! value=$(resolve_context "$key"); then
+            die "command-palette: unexpected context key: $key"
+          fi
+          ;;
+      esac
       if [ "$key" = "cwd" ]; then
         if [ -z "$value" ] || [ ! -d "$value" ]; then
           die "command-palette: origin working directory is unavailable or missing"
