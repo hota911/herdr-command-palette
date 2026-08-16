@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/hota911/herdr-command-palette/commands.schema.json",
+  "title": "Herdr command palette catalog",
+  "description": "Schema for commands.json. Does not check id uniqueness across commands; that is checked separately by scripts/check-compat.sh, since JSON Schema cannot express cross-item uniqueness on a derived key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "expected_herdr_protocol", "commands"],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "expected_herdr_protocol": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/command" }
+    }
+  },
+  "$defs": {
+    "contextKey": {
+      "enum": ["pane_id", "tab_id", "workspace_id", "cwd"]
+    },
+    "selector": {
+      "enum": ["workspaces", "tabs", "agents"]
+    },
+    "safeString": {
+      "type": "string",
+      "description": "A string that cannot break shell argv or fzf display: no NUL, no newline.",
+      "pattern": "^[^\u0000\n]*$"
+    },
+    "nonEmptySafeString": {
+      "type": "string",
+      "description": "A non-empty string that cannot break shell argv or fzf display: no NUL, no newline.",
+      "minLength": 1,
+      "pattern": "^[^\u0000\n]*$"
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "description", "command", "arguments"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable catalog-unique id. Lowercase alphanumerics, '.', '-', '_' only.",
+          "pattern": "^[a-z0-9._-]+$"
+        },
+        "title": { "$ref": "#/$defs/nonEmptySafeString" },
+        "description": { "$ref": "#/$defs/nonEmptySafeString" },
+        "command": {
+          "type": "array",
+          "description": "[group, subcommand] passed directly after 'herdr'.",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          }
+        },
+        "arguments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/argument" }
+        },
+        "confirm": { "$ref": "#/$defs/nonEmptySafeString" }
+      }
+    },
+    "argument": {
+      "oneOf": [
+        { "$ref": "#/$defs/argumentLiteral" },
+        { "$ref": "#/$defs/argumentContext" },
+        { "$ref": "#/$defs/argumentInput" },
+        { "$ref": "#/$defs/argumentSelect" }
+      ]
+    },
+    "argumentLiteral": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "value"],
+      "properties": {
+        "source": { "const": "literal" },
+        "value": { "$ref": "#/$defs/safeString" }
+      }
+    },
+    "argumentContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "key"],
+      "properties": {
+        "source": { "const": "context" },
+        "key": { "$ref": "#/$defs/contextKey" }
+      }
+    },
+    "argumentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "prompt", "required"],
+      "properties": {
+        "source": { "const": "input" },
+        "prompt": { "$ref": "#/$defs/nonEmptySafeString" },
+        "description": { "$ref": "#/$defs/safeString" },
+        "required": { "type": "boolean" },
+        "default_context": { "$ref": "#/$defs/contextKey" },
+        "validation": { "const": "directory" }
+      }
+    },
+    "argumentSelect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "selector", "prompt"],
+      "properties": {
+        "source": { "const": "select" },
+        "selector": { "$ref": "#/$defs/selector" },
+        "prompt": { "$ref": "#/$defs/nonEmptySafeString" },
+        "description": { "$ref": "#/$defs/safeString" },
+        "exclude_context": { "$ref": "#/$defs/contextKey" }
+      }
+    }
+  }
+}
