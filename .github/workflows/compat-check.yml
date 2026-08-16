@@ -23,6 +23,9 @@ jobs:
           persist-credentials: false
 
       - name: Install herdr
+        # Left unpinned intentionally: testing compatibility against
+        # whatever herdr currently ships as its latest release IS the point
+        # of this weekly job, unlike check-jsonschema below.
         run: |
           curl -fsSL https://herdr.dev/install.sh | sh
           # install.sh's default install dir; see $HOME/.local/bin in the
@@ -30,7 +33,9 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install check-jsonschema
-        run: pipx install check-jsonschema
+        # Pinned to the version validated locally (0.38.0) so a
+        # check-jsonschema release change can't itself flip this job red.
+        run: pipx install check-jsonschema==0.38.0
 
       - name: Run compatibility check
         id: check
@@ -40,14 +45,32 @@ jobs:
             echo "exit_code=0" >> "$GITHUB_OUTPUT"
           else
             echo "exit_code=1" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
-      - name: Open issue on failure
-        if: steps.check.outputs.exit_code != '0'
+      - name: Open or update issue on failure
+        # always(): the previous step intentionally fails (exit 1) so the
+        # run shows red; without always() here, this step's implicit
+        # success() check would skip it whenever that happens.
+        if: always() && steps.check.outputs.exit_code == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh issue create \
+          set -o pipefail
+          title_search="herdr compatibility check failed"
+          existing=$(gh issue list \
             --repo "${{ github.repository }}" \
-            --title "herdr compatibility check failed ($(date -u +%Y-%m-%d))" \
-            --body-file result.txt
+            --state open \
+            --search "$title_search in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" \
+              --repo "${{ github.repository }}" \
+              --body-file result.txt
+          else
+            gh issue create \
+              --repo "${{ github.repository }}" \
+              --title "$title_search ($(date -u +%Y-%m-%d))" \
+              --body-file result.txt
+          fi

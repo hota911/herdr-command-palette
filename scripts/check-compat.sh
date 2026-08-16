@@ -138,6 +138,54 @@ get_subcommand_help() {
   return 0
 }
 
+# compute_value_flags — parses $subcommand_help_output's Options section and
+# sets value_flags to a space-separated list of "--flag" tokens that consume
+# the next argv element as their value (identified by a "<...>" placeholder
+# on the same Options line). Flags not in this list are treated as boolean.
+compute_value_flags() {
+  value_flags=$(printf '%s\n' "$subcommand_help_output" | awk '
+    /^Options:/ { in_opts = 1; next }
+    in_opts && /^ +--[a-zA-Z-]+/ && /</ {
+      match($0, /--[a-zA-Z-]+/)
+      print substr($0, RSTART, RLENGTH)
+    }
+  ' | tr '\n' ' ')
+}
+
+# flag_takes_value FLAG — returns success if FLAG is in $value_flags.
+flag_takes_value() {
+  case " $value_flags " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# compute_known_flags — parses $subcommand_help_output's Options section and
+# sets known_flags to a space-separated list of every "--flag" token the
+# subcommand declares, value-taking or boolean. Used both to tell a
+# genuinely missing flag value apart from a literal value that happens to
+# start with "--" (Check 5), and to confirm a literal "--flag" argument in
+# commands.json exactly matches a declared option rather than merely being a
+# substring of one, e.g. "--focus" must not pass just because "--focused" is
+# declared (Check 3).
+compute_known_flags() {
+  known_flags=$(printf '%s\n' "$subcommand_help_output" | awk '
+    /^Options:/ { in_opts = 1; next }
+    in_opts && /^ +--[a-zA-Z-]+/ {
+      match($0, /--[a-zA-Z-]+/)
+      print substr($0, RSTART, RLENGTH)
+    }
+  ' | tr '\n' ' ')
+}
+
+# flag_is_known FLAG — returns success if FLAG is in $known_flags.
+flag_is_known() {
+  case " $known_flags " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # --- Check 3: every unique [group, subcommand] pair used by commands.json,
 # plus (not duplicating the flag list) every literal "--flag" argument that
 # pair uses.
@@ -159,13 +207,14 @@ while IFS=$'\t' read -r group sub flags; do
   [ -z "$group" ] && continue
   if get_subcommand_help "$group" "$sub"; then
     if [ -n "$flags" ]; then
+      compute_known_flags
       old_ifs="$IFS"
       IFS=','
       # shellcheck disable=SC2086 # intentional: split flags on IFS=','
       set -- $flags
       IFS="$old_ifs"
       for flag in "$@"; do
-        if ! printf '%s\n' "$subcommand_help_output" | grep -qF -- "$flag"; then
+        if ! flag_is_known "$flag"; then
           fail "herdr $group $sub -h does not mention $flag (used as a literal argument in commands.json)"
         fi
       done
@@ -214,10 +263,22 @@ get_subcommand_help agent list
 # `workspace rename <WORKSPACE_ID>` name the same placeholder).
 
 # compute_required_positionals GROUP SUB — parses $subcommand_help_output's
-# Usage line and sets required_positional_names (array, lowercased) and
-# positional_open_ended (1 if a required "..." or any optional positional
-# follows the fixed ones, meaning extra supplied positionals beyond
-# required_positional_names are expected and fine).
+# Usage line and sets:
+#   required_positional_names  — array (lowercased) of the fixed required
+#                                 positionals, in order.
+#   positional_open_ended      — 1 if a "..." (on a required or an optional
+#                                 positional) makes the count unbounded above
+#                                 required_positional_names; a plain
+#                                 non-variadic "[NAME]" does NOT set this —
+#                                 see optional_positional_count.
+#   optional_positional_count  — count of non-variadic optional positionals
+#                                 ("[NAME]" without "..."), each raising the
+#                                 max supplied count by exactly one. Only
+#                                 meaningful when positional_open_ended is 0.
+#   required_option_flags      — array of "--flag" tokens that are required
+#                                 options in the Usage line (outside
+#                                 "[OPTIONS]"), e.g. "--direction" in
+#                                 "herdr pane focus [OPTIONS] --direction <DIRECTION>".
 compute_required_positionals() {
   group="$1"
   sub="$2"
@@ -225,6 +286,8 @@ compute_required_positionals() {
   tail="${usage_line#"Usage: herdr $group $sub"}"
 
   required_positional_names=()
+  required_option_flags=()
+  optional_positional_count=0
   positional_open_ended=0
   prev_flag=0
 
@@ -237,6 +300,7 @@ compute_required_positionals() {
     if [ "$first_char" = "-" ]; then
       # A "--flag" token in the Usage line is a required option; the "<...>"
       # token right after it is that option's value, not a positional.
+      required_option_flags+=("$tok")
       prev_flag=1
       continue
     fi
@@ -244,9 +308,17 @@ compute_required_positionals() {
       continue
     fi
     if [ "$first_char" = "[" ]; then
-      # An optional positional, e.g. "[PANE_ID]" or "[LABEL]...": not
-      # required, but its presence means extra supplied positionals are OK.
-      positional_open_ended=1
+      # An optional positional. "[LABEL]..." is variadic (unbounded count,
+      # like a required "..." positional); a plain "[PANE_ID]" is a single
+      # optional slot and only raises the max supplied count by one.
+      case "$tok" in
+        *'...')
+          positional_open_ended=1
+          ;;
+        *)
+          optional_positional_count=$((optional_positional_count + 1))
+          ;;
+      esac
       continue
     fi
     if [ "$first_char" = "<" ]; then
@@ -261,53 +333,6 @@ compute_required_positionals() {
       esac
     fi
   done
-}
-
-# compute_value_flags — parses $subcommand_help_output's Options section and
-# sets value_flags to a space-separated list of "--flag" tokens that consume
-# the next argv element as their value (identified by a "<...>" placeholder
-# on the same Options line). Flags not in this list are treated as boolean.
-compute_value_flags() {
-  value_flags=$(printf '%s\n' "$subcommand_help_output" | awk '
-    /^Options:/ { in_opts = 1; next }
-    in_opts && /^ +--[a-zA-Z-]+/ && /</ {
-      match($0, /--[a-zA-Z-]+/)
-      print substr($0, RSTART, RLENGTH)
-    }
-  ' | tr '\n' ' ')
-}
-
-# flag_takes_value FLAG — returns success if FLAG is in $value_flags.
-flag_takes_value() {
-  case " $value_flags " in
-    *" $1 "*) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# compute_known_flags — parses $subcommand_help_output's Options section and
-# sets known_flags to a space-separated list of every "--flag" token the
-# subcommand declares, value-taking or boolean. Used to tell a genuinely
-# missing flag value (the next token is itself a declared flag of this
-# subcommand) apart from a literal value that happens to start with "--"
-# (not a declared flag, so it's a legitimate value, same as clap would parse
-# it).
-compute_known_flags() {
-  known_flags=$(printf '%s\n' "$subcommand_help_output" | awk '
-    /^Options:/ { in_opts = 1; next }
-    in_opts && /^ +--[a-zA-Z-]+/ {
-      match($0, /--[a-zA-Z-]+/)
-      print substr($0, RSTART, RLENGTH)
-    }
-  ' | tr '\n' ' ')
-}
-
-# flag_is_known FLAG — returns success if FLAG is in $known_flags.
-flag_is_known() {
-  case " $known_flags " in
-    *" $1 "*) return 0 ;;
-    *) return 1 ;;
-  esac
 }
 
 # compute_supplied_positionals ID CMD_JSON — walks CMD_JSON's "arguments"
@@ -427,9 +452,17 @@ while IFS=$'\t' read -r group sub; do
         fail "$id: herdr $group $sub requires at least $required_count positional argument(s), commands.json supplies $supplied_count"
         continue
       fi
-    else
+    elif [ "$optional_positional_count" -eq 0 ]; then
       if [ "$supplied_count" -ne "$required_count" ]; then
         fail "$id: herdr $group $sub requires exactly $required_count positional argument(s), commands.json supplies $supplied_count"
+        continue
+      fi
+    else
+      # A non-variadic "[NAME]" raises the max allowed count by exactly one
+      # per occurrence, unlike "..." which is unbounded (handled above).
+      max_count=$((required_count + optional_positional_count))
+      if [ "$supplied_count" -lt "$required_count" ] || [ "$supplied_count" -gt "$max_count" ]; then
+        fail "$id: herdr $group $sub accepts between $required_count and $max_count positional argument(s), commands.json supplies $supplied_count"
         continue
       fi
     fi
@@ -440,6 +473,19 @@ while IFS=$'\t' read -r group sub; do
       supplied_desc="${supplied_positionals[$i]}"
       if [ "$supplied_desc" != "any" ] && [ "$supplied_desc" != "$required_name" ]; then
         fail "$id: positional #$((i + 1)) is $supplied_desc but herdr $group $sub expects <$required_name>"
+      fi
+      i=$((i + 1))
+    done
+
+    i=0
+    required_option_count=${#required_option_flags[@]}
+    while [ "$i" -lt "$required_option_count" ]; do
+      required_flag="${required_option_flags[$i]}"
+      has_flag=$(jq -r --arg f "$required_flag" '
+        [.arguments[]? | select(.source == "literal" and .value == $f)] | length
+      ' <<<"$cmd_json")
+      if [ "$has_flag" -eq 0 ]; then
+        fail "$id: herdr $group $sub requires option $required_flag but commands.json does not supply it"
       fi
       i=$((i + 1))
     done

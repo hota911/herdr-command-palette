@@ -54,11 +54,18 @@ teardown() {
   [[ "$output" == *"dup.id"* ]]
 }
 
-@test "FAILs on an unknown subcommand (stub falls back to top-level help)" {
+@test "FAILs on an unknown subcommand within a known group (stub returns group help, exit 2)" {
   FIXTURE_REPO="$(setup_fixture_repo "$ROOT/tests/fixtures/catalogs/unknown-subcommand.json")"
   run bash "$FIXTURE_REPO/scripts/check-compat.sh"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"herdr pane teleport -h did not print that subcommand's usage line"* ]]
+  [[ "$output" == *"herdr pane teleport -h exited 2"* ]]
+}
+
+@test "FAILs on an unknown group (stub falls back to top-level help, exit 0)" {
+  FIXTURE_REPO="$(setup_fixture_repo "$ROOT/tests/fixtures/catalogs/unknown-group.json")"
+  run bash "$FIXTURE_REPO/scripts/check-compat.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"herdr frobnicate teleport -h did not print that subcommand's usage line"* ]]
 }
 
 @test "FAILs when a literal flag is missing from the subcommand's help" {
@@ -94,4 +101,25 @@ teardown() {
   run bash "$FIXTURE_REPO/scripts/check-compat.sh"
   [ "$status" -ne 0 ]
   [[ "$output" == *"workspace.close.surplus: herdr workspace close requires exactly 1 positional argument(s), commands.json supplies 2"* ]]
+}
+
+@test "FAILs on a surplus positional for a [NAME]-only (non-variadic) optional subcommand" {
+  FIXTURE_REPO="$(setup_fixture_repo "$ROOT/tests/fixtures/catalogs/surplus-optional-positional.json")"
+  run bash "$FIXTURE_REPO/scripts/check-compat.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"pane.zoom.surplus: herdr pane zoom accepts between 0 and 1 positional argument(s), commands.json supplies 2"* ]]
+}
+
+@test "FAILs when a literal flag only matches a superstring of a declared option" {
+  FIXTURE_REPO="$(setup_fixture_repo "$ROOT/tests/fixtures/catalogs/flag-substring.json")"
+  run bash "$FIXTURE_REPO/scripts/check-compat.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"herdr pane substr-flag-test -h does not mention --focus (used as a literal argument in commands.json)"* ]]
+}
+
+@test "FAILs when a required option from the Usage line is not supplied" {
+  FIXTURE_REPO="$(setup_fixture_repo "$ROOT/tests/fixtures/catalogs/missing-required-option.json")"
+  run bash "$FIXTURE_REPO/scripts/check-compat.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"pane.focus.broken: herdr pane focus requires option --direction but commands.json does not supply it"* ]]
 }

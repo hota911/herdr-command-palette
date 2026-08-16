@@ -5,7 +5,7 @@
     {
       "id": "pane.teleport",
       "title": "Pane: Teleport",
-      "description": "Not a real herdr subcommand; the stub falls back to top-level help for it.",
+      "description": "Not a real herdr subcommand; pane is a known group, so the stub returns pane's group help with exit 2.",
       "command": ["pane", "teleport"],
       "arguments": []
     }

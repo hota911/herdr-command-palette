@@ -12,7 +12,7 @@ herdr の組み込み操作（Workspace / Tab / Pane / Agent / Config）を fzf 
 ぶ。操作を fuzzy search または矢印キーで選び、enter を押す。
 
 - コマンドによっては実行前に追加の入力を求められる。
-  - **自由入力**（新規タブのラベル、workspace のディレクトリなど）— 値を入力して enter を押す。
+  - **自由入力**（タブのリネーム、workspace のディレクトリなど）— 値を入力して enter を押す。
     必須項目を空のまま確定するとキャンセル扱いになる。esc はいつでもキャンセルできる。
   - **一覧からの選択**（切り替え先の workspace、tab、agent など）— メインパレットと同様に fuzzy
     search または矢印キーで一覧から選ぶ。esc でキャンセル。
@@ -34,17 +34,9 @@ herdr の組み込み操作（Workspace / Tab / Pane / Agent / Config）を fzf 
 
 ### 対象外
 
-このパレットは herdr の公開 CLI で実現できる範囲を対象にする。次の built-in keybinding には対応
-する操作がない。
-
-| keybinding | 理由 |
-|---|---|
-| `help`、`settings`、`detach`、`open_notification_target`、`goto`、`edit_scrollback`、`toggle_sidebar` | herdr の公開 CLI と socket API に対応する request がない |
-| `resize_mode`（モードとして）、navigate mode | モードを開く代わりに、方向別の直接操作を提供する |
-| `cycle_pane_next`、`cycle_pane_previous` | socket API は任意の pane ID をフォーカスできるが、公開 CLI に対応するコマンドがない。対応には raw socket 用の実行経路が必要になる |
-| `last_pane` | 公開 CLI が提供しないフォーカス履歴を必要とする |
-| `new_worktree`、`open_worktree`、`remove_worktree` | ファイルシステムへの副作用と追加確認を別設計で扱う必要がある |
-| `remote_image_paste` | remote client 固有の入力処理であり、socket CLI の操作ではない |
+このパレットは herdr の公開 CLI で実現できる範囲を対象にする。対応する操作がない built-in
+keybinding とその理由は、設計文書の
+[built-in keybinding 対応表](docs/design/command-catalog.md#mapping-to-built-in-keybindings)を参照。
 
 ## 要件
 
@@ -56,7 +48,11 @@ herdr の組み込み操作（Workspace / Tab / Pane / Agent / Config）を fzf 
 
 ## インストール
 
-ローカルからリンクする。
+```bash
+herdr plugin install hota911/herdr-command-palette
+```
+
+ローカルで開発する場合は、作業コピーをリンクする。
 
 ```bash
 herdr plugin link /path/to/herdr-command-palette
@@ -81,10 +77,10 @@ description = "Command palette (built-ins)"
   て開く。popup は session-modal であり、tiled layout とは独立したサイズで表示され、pane 一覧には
   現れない。
 - 利用中の herdr がこのプラグインの最低バージョンを満たさない場合、herdr はプラグイン自体をロー
-  ドしない。herdr がこのカタログの前提とする protocol バージョンからずれている場合は、パレットの
-  ヘッダーに警告が出る（動作自体は止まらず、カタログが古い可能性があることを示すだけ）。選んだ操
-  作が失敗した場合は、パレットが黙って閉じることはなく、実行した group と subcommand、herdr 自身
-  の出力を表示してキー入力を待つ。
+  ドしない。herdr がこのカタログの前提とする protocol バージョンからずれている場合、あるいは
+  protocol がまったく読み取れない場合は、パレットのヘッダーに警告が出る（動作自体は止まらず、カ
+  タログが古い可能性があることを示すだけ）。選んだ操作が失敗した場合は、パレットが黙って閉じるこ
+  とはなく、実行した group と subcommand、herdr 自身の出力を表示してキー入力を待つ。
 
 ## 関連プラグイン
 

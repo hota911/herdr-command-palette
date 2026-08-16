@@ -4,8 +4,9 @@
 # and runs the herdr CLI. Runs inside the popup pane opened by open.sh, so a
 # real TTY is available for fzf.
 #
-# The die()+fzf error-display pattern is adapted from Jan Tvrdík's
-# jt.command-palette (MIT), https://github.com/JanTvrdik/herdr-command-palette.
+# The error-display pattern (print the message via die(), then wait for a
+# keypress before exiting) is adapted from Jan Tvrdík's jt.command-palette
+# (MIT), https://github.com/JanTvrdik/herdr-command-palette.
 #
 # Bash 3.2 compatible (macOS stock bash): no mapfile, no associative arrays,
 # no `${var,,}`.
@@ -22,8 +23,23 @@ die() {
   exit 1
 }
 
-# resolve_context maps a static context key to the ORIGIN_* value captured by
-# open.sh. Prints the value and returns 0, or returns 1 for an unknown key.
+# require_clean_fzf_rc RC — classifies fzf's exit status for the fzf calls
+# that pick from a real candidate list (main picker, select, confirm; input
+# has its own handling since --print-query makes "no match" a normal
+# outcome there, not a cancel). 0 means the caller should proceed; 1 (no
+# match) and 130 (interrupted, i.e. Esc/Ctrl-C) are clean cancels and exit
+# the whole script with status 0; anything else (2: fzf usage/runtime
+# error) is a genuine failure and must not be silently treated as a cancel.
+require_clean_fzf_rc() {
+  case "$1" in
+    0) return 0 ;;
+    1|130) exit 0 ;;
+    *) die "command-palette: fzf exited with an unexpected status ($1)" ;;
+  esac
+}
+
+# resolve_context maps a static context key to the ORIGIN_* value captured by open.sh.
+# Prints the value and returns 0, or returns 1 for an unknown key.
 resolve_context() {
   case "$1" in
     pane_id) printf '%s' "$ORIGIN_PANE_ID" ;;
@@ -156,13 +172,24 @@ if ! jq_err=$(jq empty "$catalog_path" 2>&1); then
   die "command-palette: commands.json is not valid JSON: $jq_err"
 fi
 
+# 3b. This plugin defines exactly one catalog format, schema_version 1 (see
+# docs/design/command-catalog.md); a catalog claiming a different version
+# was not written for this palette.sh.
+schema_version=$(jq -r '.schema_version' "$catalog_path")
+if [ "$schema_version" != "1" ]; then
+  die "command-palette: unsupported commands.json schema_version: $schema_version (expected 1)"
+fi
+
 # 4-5. Compare the herdr socket API protocol against expected_herdr_protocol.
-# A mismatch is a warning only; it never blocks execution.
+# Neither an unreadable protocol nor a mismatch blocks execution; both are
+# shown as a header warning only.
 expected_protocol=$(jq -r '.expected_herdr_protocol' "$catalog_path")
 schema_output=$("$herdr_bin" api schema 2>&1)
 actual_protocol=$(printf '%s\n' "$schema_output" | sed -n 's/^protocol: *//p' | head -n 1)
 main_header="herdr command palette"
-if [ -n "$actual_protocol" ] && [ "$actual_protocol" != "$expected_protocol" ]; then
+if [ -z "$actual_protocol" ]; then
+  main_header="warning: could not read protocol from herdr api schema"
+elif [ "$actual_protocol" != "$expected_protocol" ]; then
   main_header="warning: catalog expects herdr protocol $expected_protocol, herdr reports $actual_protocol"
 fi
 
@@ -170,9 +197,7 @@ fi
 selected_line=$(jq -r '.commands[] | "\(.id)\t\(.title)"' "$catalog_path" \
   | fzf --delimiter=$'\t' --with-nth=2 --header="$main_header" --prompt="herdr > ")
 rc=$?
-if [ $rc -ne 0 ]; then
-  exit 0
-fi
+require_clean_fzf_rc "$rc"
 selected_id=$(printf '%s' "$selected_line" | cut -f1)
 
 cmd_json=$(jq -c --arg id "$selected_id" '.commands[] | select(.id == $id)' "$catalog_path")
@@ -238,8 +263,16 @@ while [ "$i" -lt "$argc" ]; do
       query_output=$(printf '' | fzf --print-query --query="$initial_query" \
         --header="$input_description" --prompt="$prompt")
       rc=$?
+      # --print-query always prints the query as its first line, even on a
+      # "no match" exit (1, the normal outcome here since there are no real
+      # candidates to match against) — so unlike the other fzf call sites,
+      # 1 is not a cancel. Only 130 (Esc/Ctrl-C) is; 2 is a genuine fzf
+      # error and must not be treated as if the user simply typed nothing.
       if [ $rc -eq 130 ]; then
         exit 0
+      fi
+      if [ $rc -ne 0 ] && [ $rc -ne 1 ]; then
+        die "command-palette: fzf exited with an unexpected status ($rc)"
       fi
       value=$(printf '%s\n' "$query_output" | sed -n '1p')
 
@@ -283,11 +316,19 @@ while [ "$i" -lt "$argc" ]; do
           if printf '%s' "$raw" | jq -e '[.result.workspaces[] | select(.workspace_id == null or .workspace_id == "")] | length > 0' >/dev/null 2>&1; then
             die "command-palette: herdr $list_desc returned a candidate without workspace_id"
           fi
-          candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" '
+          # Sanitize label control characters (newline/tab/CR): a label is
+          # herdr-supplied, not catalog-controlled, and gets embedded raw
+          # into this tab-delimited candidate row; left unsanitized, a
+          # label containing \n or \t could forge extra rows or shift which
+          # field fzf treats as the id.
+          if ! candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" '
             .result.workspaces[]
             | select($excl == "" or .workspace_id != $excl)
-            | "\(.workspace_id)\t\(.label) (\(.workspace_id))"
-          ')
+            | ((.label // "") | gsub("[\\n\\r\\t]"; " ")) as $label
+            | "\(.workspace_id)\t\($label) (\(.workspace_id))"
+          '); then
+            die "command-palette: failed to build $list_desc candidates"
+          fi
           ;;
         tabs)
           list_desc="tab list"
@@ -304,18 +345,24 @@ while [ "$i" -lt "$argc" ]; do
           fi
 
           # tab list spans all workspaces but only carries workspace_id, so
-          # resolve workspace_id -> label to prefix each candidate.
+          # resolve workspace_id -> label to prefix each candidate. Labels
+          # are sanitized here (see the "workspaces" case above for why).
           fetch_workspace_list_for_labels
-          ws_labels=$(printf '%s' "$ws_list_raw" | jq -c '
-            [.result.workspaces[] | select(.workspace_id != null) | {(.workspace_id): .label}] | add // {}
-          ')
+          if ! ws_labels=$(printf '%s' "$ws_list_raw" | jq -c '
+            [.result.workspaces[] | select(.workspace_id != null) | {(.workspace_id): ((.label // "") | gsub("[\\n\\r\\t]"; " "))}] | add // {}
+          '); then
+            die "command-palette: failed to build workspace label lookup"
+          fi
 
-          candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" --argjson ws "$ws_labels" '
+          if ! candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" --argjson ws "$ws_labels" '
             .result.tabs[]
             | select($excl == "" or .tab_id != $excl)
             | ($ws[.workspace_id] // .workspace_id) as $ws_label
-            | "\(.tab_id)\t\($ws_label) / \(.label) (\(.tab_id))"
-          ')
+            | ((.label // "") | gsub("[\\n\\r\\t]"; " ")) as $label
+            | "\(.tab_id)\t\($ws_label) / \($label) (\(.tab_id))"
+          '); then
+            die "command-palette: failed to build $list_desc candidates"
+          fi
           ;;
         agents)
           list_desc="agent list"
@@ -332,18 +379,24 @@ while [ "$i" -lt "$argc" ]; do
           fi
 
           # agent list spans all workspaces but only carries workspace_id, so
-          # resolve workspace_id -> label to prefix each candidate.
+          # resolve workspace_id -> label to prefix each candidate. Labels
+          # are sanitized here (see the "workspaces" case above for why).
           fetch_workspace_list_for_labels
-          ws_labels=$(printf '%s' "$ws_list_raw" | jq -c '
-            [.result.workspaces[] | select(.workspace_id != null) | {(.workspace_id): .label}] | add // {}
-          ')
+          if ! ws_labels=$(printf '%s' "$ws_list_raw" | jq -c '
+            [.result.workspaces[] | select(.workspace_id != null) | {(.workspace_id): ((.label // "") | gsub("[\\n\\r\\t]"; " "))}] | add // {}
+          '); then
+            die "command-palette: failed to build workspace label lookup"
+          fi
 
-          candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" --argjson ws "$ws_labels" '
+          if ! candidates=$(printf '%s' "$raw" | jq -r --arg excl "$exclude_value" --argjson ws "$ws_labels" '
             .result.agents[]
             | select($excl == "" or .pane_id != $excl)
             | ($ws[.workspace_id] // .workspace_id) as $ws_label
-            | "\(.pane_id)\t\($ws_label) / agent: \(.terminal_title_stripped) (\(.pane_id))"
-          ')
+            | ((.terminal_title_stripped // "") | gsub("[\\n\\r\\t]"; " ")) as $title
+            | "\(.pane_id)\t\($ws_label) / agent: \($title) (\(.pane_id))"
+          '); then
+            die "command-palette: failed to build $list_desc candidates"
+          fi
           ;;
         *)
           die "command-palette: unexpected selector: $selector"
@@ -357,9 +410,7 @@ while [ "$i" -lt "$argc" ]; do
       selected=$(printf '%s\n' "$candidates" \
         | fzf --delimiter=$'\t' --with-nth=2 --header="$select_description" --prompt="$select_prompt")
       rc=$?
-      if [ $rc -ne 0 ]; then
-        exit 0
-      fi
+      require_clean_fzf_rc "$rc"
       selected_id=$(printf '%s' "$selected" | cut -f1)
       if [ -z "$selected_id" ]; then
         die "command-palette: internal error: selected candidate has no id"
@@ -382,7 +433,8 @@ confirm_text=$(jq -r '.confirm // empty' <<<"$cmd_json")
 if [ -n "$confirm_text" ]; then
   choice=$(printf 'No\nYes\n' | fzf --header="$confirm_text" --prompt="confirm > ")
   rc=$?
-  if [ $rc -ne 0 ] || [ "$choice" != "Yes" ]; then
+  require_clean_fzf_rc "$rc"
+  if [ "$choice" != "Yes" ]; then
     exit 0
   fi
 fi

@@ -64,6 +64,18 @@ check_jsonschema() {
   [[ "$output" == *'$.commands[0].title'* ]]
 }
 
+@test "rejects a trailing newline in a string field" {
+  run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-trailing-newline.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'$.commands[0].title'* ]]
+}
+
+@test "rejects a tab embedded in a string field" {
+  run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-tab-in-string.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'$.commands[0].title'* ]]
+}
+
 @test "rejects schema_version other than 1" {
   run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-schema-version.json"
   [ "$status" -ne 0 ]
