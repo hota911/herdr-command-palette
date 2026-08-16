@@ -31,11 +31,20 @@ jobs:
 
       - name: Install actionlint
         run: |
+          # actionlint's own download-actionlint.bash does NOT verify a
+          # checksum (checked 2026-08-16: it curls the release tarball and
+          # extracts it, nothing more) — so this downloads the release
+          # tarball and its published checksums.txt directly and verifies
+          # with sha256sum -c instead of using that script.
+          version=1.7.12
+          asset="actionlint_${version}_linux_amd64.tar.gz"
+          base_url="https://github.com/rhysd/actionlint/releases/download/v${version}"
+          curl -fsSLO "$base_url/$asset"
+          curl -fsSLO "$base_url/actionlint_${version}_checksums.txt"
+          grep -F -- "$asset" "actionlint_${version}_checksums.txt" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/bin"
-          # download-actionlint.bash pinned to a commit on rhysd/actionlint's
-          # main branch, itself downloading a pinned actionlint release and
-          # verifying its checksum.
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7/scripts/download-actionlint.bash | bash -s -- 1.7.12 "$RUNNER_TEMP/bin"
+          tar xzf "$asset" -C "$RUNNER_TEMP/bin" actionlint
+          rm -f "$asset" "actionlint_${version}_checksums.txt"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: bash -n

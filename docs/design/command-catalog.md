@@ -442,13 +442,20 @@ The initial version does not cover the following operations.
 1. Confirm `fzf` and `jq` are present.
 2. Confirm `ORIGIN_PANE_ID`, `ORIGIN_TAB_ID`, and `ORIGIN_WORKSPACE_ID` are present.
 3. Read `$HERDR_PLUGIN_ROOT/commands.json`. If it cannot be read as JSON, this is an error.
-   Schema validation is not performed at runtime.
+   Schema validation is not performed at runtime, except that `palette.sh` also confirms
+   `schema_version` is `1` and dies otherwise.
 4. Read the protocol from `herdr api schema` and compare it against
    `expected_herdr_protocol`.
-5. If the protocol differs, show a warning in fzf's header, but do not block execution.
-6. Pass `id` and `title` to the main fzf.
+5. If the protocol could not be read at all, show a "could not read protocol" warning in fzf's
+   header; if it was read but differs from `expected_herdr_protocol`, show a mismatch warning
+   instead. Neither case blocks execution.
+6. Pass `id` and `title` to the main fzf. A non-cancel, non-zero `fzf` exit status (i.e. 2, not
+   1 or 130) is an error, not a cancellation — see "Errors and cancellation".
 7. Resolve the selected command's `arguments` left to right, appending one element at a time
-   to a Bash array.
+   to a Bash array. For a `select` argument, a jq transform failure while building the
+   candidate list is an error, distinct from the transform succeeding with zero candidates
+   (a normal cancellation); candidate labels are sanitized before display (see "Errors and
+   cancellation").
 8. If `confirm` is present, let the user choose Yes or No.
 9. Run `"$herdr_bin" "${argv[@]}"`.
 10. On success, exit and close the popup.
@@ -490,8 +497,8 @@ The validation conditions are:
 - `select.selector` is an allowed selector.
 - `select.exclude_context` is unspecified or an allowed context key.
 - `confirm` is unspecified or a non-empty string.
-- Definition strings contain no NUL (which cannot pass through a shell) and no newline (which
-  would break the display).
+- Definition strings contain no NUL (which cannot pass through a shell), no newline including a
+  trailing one, and no tab (all of which would break the tab-delimited fzf candidate display).
 
 When validation fails, check-jsonschema prints the JSON path of the invalid location. No
 custom error message is written; the JSON Schema validator's own output is relied on.
@@ -499,28 +506,41 @@ custom error message is written; the JSON Schema validator's own output is relie
 ## Errors and cancellation
 
 Errors are shown inside the palette pane, and it waits for a keypress before exiting. This
-`die`-and-fzf execution pattern comes from Jan Tvrdík's jt.command-palette, so its MIT
-attribution is kept in implementation comments. The source is
-https://github.com/JanTvrdik/herdr-command-palette.
+error-display pattern — print the message with `die`, then wait for a keypress before exiting
+— is adapted from Jan Tvrdík's jt.command-palette, so its MIT attribution is kept in
+implementation comments. The source is https://github.com/JanTvrdik/herdr-command-palette.
 
 The following states are treated as errors:
 
 - `fzf` or `jq` is missing.
 - A required piece of launch-origin context is missing.
-- `commands.json` is missing, unreadable, or invalid JSON.
+- `commands.json` is missing, unreadable, or invalid JSON, or its `schema_version` is not `1`.
 - A `herdr ... list` call fails.
-- A list result does not match the expected shape, or a candidate is missing its ID.
+- A list result does not match the expected shape, or a candidate is missing its ID, or the jq
+  transform that builds candidates from it fails outright (as opposed to producing zero
+  candidates, which is a normal cancellation — see below).
 - Input validation fails.
 - Running the herdr CLI fails.
+- `fzf` itself exits with status 2 (an fzf usage or runtime error) at the main picker, a select,
+  or a confirmation screen. This is distinct from a cancellation (see below) even though both
+  are a nonzero exit status.
 
 The following states are a normal cancellation and exit with status 0:
 
-- Esc is pressed at the main picker.
-- Esc is pressed during input or select.
+- Esc is pressed at the main picker, or `fzf` there reports no match (exit status 1).
+- Esc is pressed during input or select, or (for select) `fzf` reports no match.
 - A required input is confirmed while still empty.
-- A select has no candidates.
+- A select has no candidates (the list call succeeded and returned a well-shaped, empty list;
+  see above for when the transform itself fails instead).
 - No or Esc is chosen on the confirmation screen. No is the default selection, so pressing
   Enter without picking anything also cancels.
+- `herdr api schema` doesn't report a protocol at all, or reports one that differs from
+  `expected_herdr_protocol`: both show a header warning and continue, they never block.
+
+A label from a `herdr ... list` result (e.g. a workspace, tab, or agent label) may contain
+control characters such as a newline or tab; since it's embedded into a tab-delimited candidate
+row for `fzf`, palette.sh strips those (replacing them with a space) before display so a
+crafted label can't forge extra rows or shift which field is treated as the id.
 
 When the herdr CLI fails, the group and subcommand that were run, along with herdr's own
 output, are shown. Every command runs synchronously and its failure is always shown this way.
@@ -542,17 +562,21 @@ following:
 4. Checks `workspace list`, `tab list`, and `agent list` — used by the named selectors — the
    same way.
 5. For every command, confirms its resolved argv supplies positional arguments compatible in
-   both count and name with what `herdr <group> <subcommand> -h`'s Usage line requires.
+   both count and name with what `herdr <group> <subcommand> -h`'s Usage line requires, and
+   supplies every required option the Usage line lists.
    Required positionals appear as bare `<NAME>` tokens (optionally suffixed `...` for
-   "one or more"); optional ones as `[NAME]` / `[NAME]...`; a `--flag <VALUE>` pair outside
-   `[OPTIONS]` is a required option, not a positional. commands.json never spells out a
-   positional directly — each is supplied via a `context`, `select`, `input`, or non-flag
-   `literal` argv element — so the check walks each command's resolved argv, skips known
-   `--flag`/`--flag value` pairs (using that subcommand's own Options section to tell which
-   flags take a value), and treats what's left as the supplied positionals. Their count must
-   match what the Usage line requires (exactly, unless a trailing `...` or optional positional
-   allows more), and each one's name must be compatible with its expected placeholder, using
-   this mapping (verified against herdr 0.8.0's help text for all 27 commands, 2026-08-16):
+   "one or more"); optional ones as `[NAME]` (a single optional slot, raising the allowed
+   count by exactly one) or `[NAME]...` (variadic, unbounded — same as a trailing `...` on a
+   required positional); a `--flag <VALUE>` pair outside `[OPTIONS]` is a required option, not
+   a positional. commands.json never spells out a positional directly — each is supplied via a
+   `context`, `select`, `input`, or non-flag `literal` argv element — so the check walks each
+   command's resolved argv, skips known `--flag`/`--flag value` pairs (using that subcommand's
+   own Options section to tell which flags take a value), and treats what's left as the
+   supplied positionals. Their count must be within what the Usage line allows (exactly the
+   required count when there's no `[NAME]`/`...`; up to the required count plus one per
+   non-variadic `[NAME]`; unbounded above the required count when `...` appears), and each
+   one's name must be compatible with its expected placeholder, using this mapping (verified
+   against herdr 0.8.0's help text for all 27 commands, 2026-08-16):
 
    | argument source | maps to placeholder |
    |---|---|
@@ -564,15 +588,24 @@ following:
 
    The comparison is case-insensitive because herdr's own help text is inconsistent about it
    (e.g. `workspace close <workspace_id>` vs `workspace rename <WORKSPACE_ID>` name the same
-   placeholder).
+   placeholder). Separately, every required option (`--flag <VALUE>` outside `[OPTIONS]`) must
+   appear as one of the command's `literal` arguments; a positional count/name match alone is
+   not accepted as standing in for a missing required option.
 
 It also checks that specific flags exist. Rather than duplicating the flag list in the shell
 script, it extracts the `--`-prefixed values from each command's `literal` entries and checks
-that they appear in that subcommand's help.
+that each one exactly matches a flag the subcommand's help declares (not merely appears as a
+substring of the help text — e.g. a catalog `--focus` must not pass just because the help
+declares `--focused`).
 
 GitHub Actions installs the latest herdr and runs this weekly. `actions/checkout` is pinned to
-a commit SHA, and permissions are limited to `contents: read` and `issues: write`. On failure,
-it opens a GitHub issue whose body is the check results.
+a commit SHA, and permissions are limited to `contents: read` and `issues: write`. `herdr`
+itself is installed unpinned (checking compatibility with the latest release is the point of
+this job); `check-jsonschema` is pinned to the version validated locally. On failure, the
+workflow run itself ends red (the check step exits non-zero), and a separate step, run via
+`always()` so it still executes despite that failure, either opens a GitHub issue whose body is
+the check results or, if an open issue with a matching title already exists, comments on it
+instead of opening a duplicate.
 
 ## Verification
 
@@ -586,8 +619,13 @@ Static verification runs:
 - `scripts/check-compat.sh`
 - `bats tests/`: schema-validation tests (the real catalog and a set of deliberately invalid
   fixtures under `tests/fixtures/schema/`) and `scripts/check-compat.sh` tests run against
-  `tests/stubs/herdr`, a fake herdr CLI reproducing real 0.8.0 output shapes so every FAIL path
-  can be exercised without a live herdr install.
+  `tests/stubs/herdr`, a fake herdr CLI reproducing real 0.8.0 output shapes, including both of
+  its "-h" fallback shapes (an unrecognized group vs. an unrecognized subcommand within a known
+  group), so each of `check-compat.sh`'s comparison-based FAIL paths (protocol mismatch,
+  duplicate ids, both unknown-subcommand fallback shapes, missing/superstring flags, and
+  positional count/name/surplus/required-option checks) can be exercised without a live herdr
+  install. Failures from missing preconditions (`jq`, `herdr`, or the catalog/schema files
+  themselves being absent) are not covered by the stub.
 
 `.github/workflows/ci.yml` runs all of the above (plus `shellcheck`/`bash -n` on the stub and
 `actionlint` on both workflows) on every push and pull request. This is separate from
@@ -626,8 +664,9 @@ The README documents, for users:
 - How to use free input, selection, and confirmation
 - The herdr, fzf, and jq requirements
 - Installation and a `prefix+shift+p` keybinding example
-- Built-in keybindings that the CLI cannot cover or that are out of scope for the initial
-  version
+- A pointer to this design document's "Mapping to built-in keybindings" coverage table (not a
+  duplicated table) for built-in keybindings the CLI cannot cover or that are out of scope for
+  the initial version
 - What the protocol warning and a run failure mean
 - The difference from jt.command-palette
 
