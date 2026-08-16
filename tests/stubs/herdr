@@ -19,6 +19,7 @@
 #   HERDR_STUB_CALLS     — optional file receiving runtime calls, one per line
 #   HERDR_STUB_*_LIST_JSON — JSON returned by runtime workspace/tab list calls
 #   HERDR_STUB_LIST_STATUS — nonzero status for runtime list calls
+#   HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE — omit --workspace from tab list help
 set -uo pipefail
 
 protocol="${HERDR_STUB_PROTOCOL:-19}"
@@ -261,7 +262,14 @@ Arguments:
 EOF
     ;;
   "tab list")
-    cat <<'EOF'
+    if [ "${HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE:-0}" -eq 1 ]; then
+      cat <<'EOF'
+List tabs
+
+Usage: herdr tab list
+EOF
+    else
+      cat <<'EOF'
 List tabs
 
 Usage: herdr tab list [OPTIONS]
@@ -269,6 +277,7 @@ Usage: herdr tab list [OPTIONS]
 Options:
       --workspace <WORKSPACE_ID>
 EOF
+    fi
     ;;
   "pane rename")
     cat <<'EOF'

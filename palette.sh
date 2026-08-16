@@ -90,9 +90,16 @@ resolve_computed_context() {
     die "command-palette: herdr $list_desc returned an unexpected shape"
   fi
   if printf '%s' "$raw" | jq -e --arg collection "$collection" --arg field "$id_field" '
-    [.result[$collection][] | select(.[$field] == null or .[$field] == "")] | length > 0
+    def has_invalid_id($field):
+      if type != "object" then true
+      else .[$field] as $id
+      | if ($id | type) != "string" then true
+        else $id == "" or ($id | contains("\u0000")) or ($id | contains("\n"))
+        end
+      end;
+    [.result[$collection][] | select(has_invalid_id($field))] | length > 0
   ' >/dev/null 2>&1; then
-    die "command-palette: herdr $list_desc returned a candidate without $id_field"
+    die "command-palette: herdr $list_desc returned a candidate without a valid $id_field"
   fi
 
   if ! value=$(printf '%s' "$raw" | jq -er \

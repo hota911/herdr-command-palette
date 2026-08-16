@@ -30,6 +30,14 @@ teardown() {
   [[ "$output" == "OK: herdr 0.8.0 is compatible (protocol 19)" ]]
 }
 
+@test "FAILs when tab list does not support workspace scoping" {
+  HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE=1
+  export HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE
+  run bash "$ROOT/scripts/check-compat.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"herdr tab list -h does not mention --workspace (required by computed tab context)"* ]]
+}
+
 @test "FAILs on a protocol mismatch" {
   HERDR_STUB_PROTOCOL=20
   export HERDR_STUB_PROTOCOL

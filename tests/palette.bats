@@ -115,7 +115,25 @@ run_navigation() {
   run_navigation workspace next_workspace_id
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"command-palette: herdr workspace list returned a candidate without workspace_id"* ]]
+  [[ "$output" == *"command-palette: herdr workspace list returned a candidate without a valid workspace_id"* ]]
+}
+
+@test "workspace navigation rejects a numeric workspace id" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":7,"label":"numeric"}]}}'
+
+  run_navigation workspace next_workspace_id
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"command-palette: herdr workspace list returned a candidate without a valid workspace_id"* ]]
+}
+
+@test "workspace navigation rejects an object workspace id" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":{"nested":"w2"},"label":"object"}]}}'
+
+  run_navigation workspace next_workspace_id
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"command-palette: herdr workspace list returned a candidate without a valid workspace_id"* ]]
 }
 
 @test "workspace navigation rejects a list that omits the origin workspace" {

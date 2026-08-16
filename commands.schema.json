@@ -25,15 +25,16 @@
       "enum": ["pane_id", "tab_id", "workspace_id", "cwd"]
     },
     "argumentContextKey": {
-      "enum": [
-        "pane_id",
-        "tab_id",
-        "workspace_id",
-        "cwd",
-        "next_workspace_id",
-        "previous_workspace_id",
-        "next_tab_id",
-        "previous_tab_id"
+      "anyOf": [
+        { "$ref": "#/$defs/staticContextKey" },
+        {
+          "enum": [
+            "next_workspace_id",
+            "previous_workspace_id",
+            "next_tab_id",
+            "previous_tab_id"
+          ]
+        }
       ]
     },
     "selector": {

@@ -531,7 +531,7 @@ The following states are treated as errors:
 - A required piece of launch-origin context is missing.
 - `commands.json` is missing, unreadable, or invalid JSON.
 - A `herdr ... list` call fails.
-- A list result does not match the expected shape, or a candidate is missing its ID.
+- A list result does not match the expected shape, or a candidate has a missing or invalid ID.
 - Input validation fails.
 - Running the herdr CLI fails.
 

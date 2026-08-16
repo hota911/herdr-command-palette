@@ -179,6 +179,9 @@ EOF
 
 get_subcommand_help workspace list
 get_subcommand_help tab list
+if ! printf '%s\n' "$subcommand_help_output" | grep -qF -- "--workspace"; then
+  fail "herdr tab list -h does not mention --workspace (required by computed tab context)"
+fi
 get_subcommand_help agent list
 
 # --- Check 5: required positional argument count and name for every command ---
@@ -195,7 +198,7 @@ get_subcommand_help agent list
 # compatible with what the subcommand requires.
 #
 # Name compatibility mapping (verified against herdr 0.8.0's help text for
-# all 27 commands, 2026-08-16; see docs/design/command-catalog.md,
+# all 31 commands, 2026-08-16; see docs/design/command-catalog.md,
 # "Compatibility checks"):
 #   context.key workspace_id / next_workspace_id /
 #     previous_workspace_id / select.selector workspaces   -> workspace_id
