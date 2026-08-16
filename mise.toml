@@ -1,0 +1,7 @@
+# Development tools for this plugin. Runtime requirements (fzf, jq, herdr)
+# are the user's responsibility and are documented in the README.
+[tools]
+shellcheck = "latest"
+# check-jsonschema validates commands.json against commands.schema.json
+# (see scripts/check-compat.sh).
+uv = "latest"
