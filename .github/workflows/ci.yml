@@ -1,0 +1,61 @@
+name: CI
+
+# Runs on every push and pull request: static checks, catalog schema
+# validation, workflow linting, and the unit-test suite. This is separate
+# from compat-check.yml, which installs the latest herdr release and checks
+# real-world compatibility on a weekly schedule — see
+# docs/design/command-catalog.md, "Verification".
+on:
+  push: {}
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout@v7.0.1, pinned to its release commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install shellcheck and bats
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck bats
+
+      - name: Install check-jsonschema
+        run: pipx install check-jsonschema
+
+      - name: Install actionlint
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          # download-actionlint.bash pinned to a commit on rhysd/actionlint's
+          # main branch, itself downloading a pinned actionlint release and
+          # verifying its checksum.
+          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/011a6d15e749bb3f2d771eed9c7aa0e7e3e10ee7/scripts/download-actionlint.bash | bash -s -- 1.7.12 "$RUNNER_TEMP/bin"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: bash -n
+        run: |
+          bash -n open.sh
+          bash -n palette.sh
+          bash -n scripts/check-compat.sh
+          bash -n tests/stubs/herdr
+
+      - name: shellcheck
+        run: shellcheck open.sh palette.sh scripts/check-compat.sh tests/stubs/herdr
+
+      - name: actionlint
+        run: actionlint .github/workflows/ci.yml .github/workflows/compat-check.yml
+
+      - name: Validate the schema itself
+        run: check-jsonschema --check-metaschema commands.schema.json
+
+      - name: Validate commands.json against the schema
+        run: check-jsonschema --schemafile commands.schema.json commands.json
+
+      - name: bats
+        run: bats tests/

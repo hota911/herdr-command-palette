@@ -1,0 +1,385 @@
+#!/usr/bin/env bash
+#
+# herdr — a fake herdr CLI used only by tests/check-compat.bats, driven via
+# HERDR_BIN_PATH. It reproduces the exact output shapes of the real herdr
+# 0.8.0 CLI (`--version`, `api schema`, and `<group> <sub> -h` for every
+# subcommand referenced by commands.json) so scripts/check-compat.sh can be
+# exercised without a real herdr install. Text below was copied verbatim
+# from real herdr 0.8.0 output, captured 2026-08-16.
+#
+# Any [group, sub] pair not listed in the case statement falls back to
+# printing the top-level help with exit 0 — this matches a real herdr quirk
+# (an unrecognized subcommand within a known group still exits 0 with the
+# top-level help, not the group help), which scripts/check-compat.sh guards
+# against by checking for a genuine "Usage: herdr <group> <sub>" line.
+#
+# Env vars:
+#   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 19)
+#   HERDR_STUB_VERSION   — version string `--version` reports (default 0.8.0)
+set -uo pipefail
+
+protocol="${HERDR_STUB_PROTOCOL:-19}"
+version="${HERDR_STUB_VERSION:-0.8.0}"
+
+top_level_help() {
+  cat <<'EOF'
+herdr — terminal workspace manager for AI coding agents
+
+Usage: herdr [options]
+       herdr --session <name> [options]
+       herdr --remote <ssh-target> [--session <name>]
+       herdr session attach <name>
+       herdr completion zsh
+       herdr update [--handoff]
+       herdr channel set <stable|preview>
+       herdr server stop
+       herdr server reload-config
+       herdr api <subcommand> ...
+       herdr completion <shell>
+       herdr config <subcommand> ...
+       herdr channel <subcommand> ...
+       herdr workspace <subcommand> ...
+       herdr worktree <subcommand> ...
+       herdr tab <subcommand> ...
+       herdr notification <subcommand> ...
+       herdr agent <subcommand> ...
+       herdr pane <subcommand> ...
+       herdr session <subcommand> ...
+       herdr integration <subcommand> ...
+
+Common commands:
+  herdr                            Launch or attach to the persistent session
+  herdr status [server|client]     Show local client and running server status
+  herdr update                     Download and install the latest version
+  herdr completion zsh             Generate shell completions for zsh
+  herdr server stop                Stop the running server via the API socket
+  herdr channel set <stable|preview> Choose the stable or preview update channel
+  herdr server reload-config       Reload config.toml in the running server
+  herdr config reset-keys          Back up config.toml and remove custom keybindings
+  herdr channel <subcommand>       Manage the stable or preview update channel
+  herdr api <subcommand>           Inspect socket API metadata and live runtime state
+  herdr workspace <subcommand>     Workspace helpers over the socket API
+  herdr worktree <subcommand>      Git worktree helpers over the socket API
+  herdr tab <subcommand>           Tab helpers over the socket API
+  herdr notification <subcommand>  Notification helpers over the socket API
+  herdr agent <subcommand>         Agent/terminal helpers over the socket API
+  herdr pane <subcommand>          Pane control helpers over the socket API
+  herdr session <subcommand>       Manage named persistent sessions
+  herdr integration <subcommand>   Manage built-in agent integrations
+
+Advanced commands:
+  herdr server                     Run as headless server
+
+Options:
+  --no-session        Run monolithically (no server/client, escape hatch)
+  --session <name>    Use or create a named persistent session
+  --remote <target>   Attach through SSH to a remote Herdr server
+  --remote-keybindings <local|server>
+                      Keybindings for --remote app attach (default: local)
+  --handoff           Opt into live handoff for update or remote attach
+  --default-config    Print default configuration and exit
+  --skill             Print the agent skill file and exit
+  --version, -V       Print version and exit
+  --help, -h          Show this help
+
+Config: /Users/hota/.config/herdr/config.toml
+Logs:   /Users/hota/.config/herdr/herdr.log (plus herdr-client.log, herdr-server.log)
+Env:    HERDR_CONFIG_PATH overrides config file path
+Home:   https://herdr.dev
+Skill:  herdr --skill prints agent instructions for driving herdr from a pane
+EOF
+}
+
+if [ "${1:-}" = "--version" ]; then
+  echo "herdr $version"
+  exit 0
+fi
+
+if [ "${1:-}" = "api" ] && [ "${2:-}" = "schema" ]; then
+  cat <<EOF
+Herdr API schema
+protocol: $protocol
+schema_version: 1
+schemas: error_response, event, request, subscription_event, success_response
+EOF
+  exit 0
+fi
+
+pair="${1:-} ${2:-}"
+case "$pair" in
+  "workspace focus")
+    cat <<'EOF'
+Focus a workspace
+
+Usage: herdr workspace focus <workspace_id>
+
+Arguments:
+  <workspace_id>
+EOF
+    ;;
+  "workspace create")
+    cat <<'EOF'
+Create a workspace
+
+Usage: herdr workspace create [OPTIONS]
+
+Options:
+      --cwd <PATH>
+
+      --label <TEXT>
+
+      --env <KEY=VALUE>
+          Set an environment variable for the launched process
+
+      --focus
+
+      --no-focus
+EOF
+    ;;
+  "workspace rename")
+    cat <<'EOF'
+Rename a workspace
+
+Usage: herdr workspace rename <WORKSPACE_ID> <LABEL>...
+
+Arguments:
+  <WORKSPACE_ID>
+
+  <LABEL>...
+EOF
+    ;;
+  "workspace close")
+    cat <<'EOF'
+Close a workspace
+
+Usage: herdr workspace close <workspace_id>
+
+Arguments:
+  <workspace_id>
+EOF
+    ;;
+  "workspace list")
+    cat <<'EOF'
+List workspaces
+
+Usage: herdr workspace list
+EOF
+    ;;
+  "tab focus")
+    cat <<'EOF'
+Focus a tab
+
+Usage: herdr tab focus <tab_id>
+
+Arguments:
+  <tab_id>
+EOF
+    ;;
+  "tab create")
+    cat <<'EOF'
+Create a tab
+
+Usage: herdr tab create [OPTIONS]
+
+Options:
+      --workspace <WORKSPACE_ID>
+
+      --cwd <PATH>
+
+      --label <TEXT>
+
+      --env <KEY=VALUE>
+          Set an environment variable for the launched process
+
+      --focus
+
+      --no-focus
+EOF
+    ;;
+  "tab rename")
+    cat <<'EOF'
+Rename a tab
+
+Usage: herdr tab rename <TAB_ID> <LABEL>...
+
+Arguments:
+  <TAB_ID>
+
+  <LABEL>...
+EOF
+    ;;
+  "tab close")
+    cat <<'EOF'
+Close a tab
+
+Usage: herdr tab close <tab_id>
+
+Arguments:
+  <tab_id>
+EOF
+    ;;
+  "tab list")
+    cat <<'EOF'
+List tabs
+
+Usage: herdr tab list [OPTIONS]
+
+Options:
+      --workspace <WORKSPACE_ID>
+EOF
+    ;;
+  "pane rename")
+    cat <<'EOF'
+Rename a pane
+
+Usage: herdr pane rename [OPTIONS] <PANE_ID> [LABEL]...
+
+Arguments:
+  <PANE_ID>
+
+  [LABEL]...
+
+Options:
+      --clear
+EOF
+    ;;
+  "pane close")
+    cat <<'EOF'
+Close a pane
+
+Usage: herdr pane close <pane_id>
+
+Arguments:
+  <pane_id>
+EOF
+    ;;
+  "pane zoom")
+    cat <<'EOF'
+Toggle or set pane zoom
+
+Usage: herdr pane zoom [OPTIONS] [PANE_ID]
+
+Arguments:
+  [PANE_ID]
+
+Options:
+      --pane <ID>
+
+      --current
+
+      --toggle
+
+      --on
+
+      --off
+EOF
+    ;;
+  "pane focus")
+    cat <<'EOF'
+Focus a neighboring pane
+
+Usage: herdr pane focus [OPTIONS] --direction <DIRECTION>
+
+Options:
+      --direction <DIRECTION>
+          [possible values: left, right, up, down]
+
+      --pane <ID>
+
+      --current
+EOF
+    ;;
+  "pane split")
+    cat <<'EOF'
+Split a pane
+
+Usage: herdr pane split [OPTIONS] [PANE_ID]
+
+Arguments:
+  [PANE_ID]
+
+Options:
+      --pane <ID>
+
+      --current
+
+      --direction <DIRECTION>
+          [possible values: right, down]
+
+      --ratio <FLOAT>
+
+      --cwd <PATH>
+
+      --env <KEY=VALUE>
+          Set an environment variable for the launched process
+
+      --focus
+
+      --no-focus
+EOF
+    ;;
+  "pane swap")
+    cat <<'EOF'
+Swap panes
+
+Usage: herdr pane swap [OPTIONS]
+
+Options:
+      --direction <DIRECTION>
+          [possible values: left, right, up, down]
+
+      --pane <ID>
+
+      --current
+
+      --source-pane <ID>
+
+      --target-pane <ID>
+EOF
+    ;;
+  "pane resize")
+    cat <<'EOF'
+Resize a pane split
+
+Usage: herdr pane resize [OPTIONS] --direction <DIRECTION>
+
+Options:
+      --direction <DIRECTION>
+          [possible values: left, right, up, down]
+
+      --amount <FLOAT>
+
+      --pane <ID>
+
+      --current
+EOF
+    ;;
+  "agent focus")
+    cat <<'EOF'
+Focus an agent
+
+Usage: herdr agent focus <target>
+
+Arguments:
+  <target>
+EOF
+    ;;
+  "agent list")
+    cat <<'EOF'
+List agents
+
+Usage: herdr agent list
+EOF
+    ;;
+  "server reload-config")
+    cat <<'EOF'
+Reload config in the running server
+
+Usage: herdr server reload-config
+EOF
+    ;;
+  *)
+    top_level_help
+    ;;
+esac
+exit 0

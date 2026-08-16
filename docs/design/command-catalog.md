@@ -584,6 +584,15 @@ Static verification runs:
 - `shellcheck open.sh palette.sh scripts/check-compat.sh`
 - `uvx check-jsonschema --schemafile commands.schema.json commands.json`
 - `scripts/check-compat.sh`
+- `bats tests/`: schema-validation tests (the real catalog and a set of deliberately invalid
+  fixtures under `tests/fixtures/schema/`) and `scripts/check-compat.sh` tests run against
+  `tests/stubs/herdr`, a fake herdr CLI reproducing real 0.8.0 output shapes so every FAIL path
+  can be exercised without a live herdr install.
+
+`.github/workflows/ci.yml` runs all of the above (plus `shellcheck`/`bash -n` on the stub and
+`actionlint` on both workflows) on every push and pull request. This is separate from
+`.github/workflows/compat-check.yml`, which installs the latest herdr release and checks
+real-world compatibility weekly (see "Compatibility checks" above).
 
 Real-machine E2E confirms representative argument types and cancellation. The palette pane is
 popup placement, which does not appear in `herdr pane list`; it therefore can't be driven with
