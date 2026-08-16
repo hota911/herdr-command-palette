@@ -161,7 +161,7 @@ argv element and is never reinterpreted by a shell.
 }
 ```
 
-The four allowed keys are:
+The four static keys are:
 
 - `pane_id`: `ORIGIN_PANE_ID`
 - `tab_id`: `ORIGIN_TAB_ID`
@@ -171,6 +171,22 @@ The four allowed keys are:
 If any of the Pane, Tab, or Workspace IDs is empty, this is an error before the catalog is
 displayed. For commands that use `cwd`, argument resolution checks that the value is
 non-empty and is an existing directory.
+
+Command arguments may also use four computed context keys:
+
+- `next_workspace_id`
+- `previous_workspace_id`
+- `next_tab_id`
+- `previous_tab_id`
+
+Workspace keys resolve against the array order from `herdr workspace list`. Tab keys resolve
+against `herdr tab list --workspace "$ORIGIN_WORKSPACE_ID"`, so navigation stays inside the
+workspace that opened the palette. The resolver locates the corresponding origin ID, selects
+the adjacent entry, and wraps at both ends. A one-entry list resolves to the same ID.
+
+Computed context keys are valid only as command arguments. `input.default_context` and
+`select.exclude_context` accept only the four static keys, because resolving a default or an
+exclusion must not trigger a navigation lookup.
 
 `herdr pane current` must never be re-run after the popup opens, because doing so would
 refer to the palette pane instead of the launch origin.
@@ -194,8 +210,8 @@ element.
 - `prompt`: the prompt for the input field.
 - `description`: an optional description. When absent, the command's `description` is used.
 - `required`: a boolean indicating whether an empty string is an allowed value.
-- `default_context`: an optional initial value. The allowed values are the same four as
-  `context`.
+- `default_context`: an optional initial value. The allowed values are the four static
+  context keys.
 - `validation`: an optional validation method. The only value the initial version allows is
   `directory`.
 
@@ -353,6 +369,8 @@ CLI.
 ### Workspace
 
 - `Workspace: Switch…`
+- `Workspace: Next`
+- `Workspace: Previous`
 - `Workspace: New…`
 - `Workspace: Rename current`
 - `Workspace: Close current`
@@ -360,6 +378,8 @@ CLI.
 ### Tab
 
 - `Tab: Switch…`
+- `Tab: Next`
+- `Tab: Previous`
 - `Tab: New`
 - `Tab: Rename current`
 - `Tab: Close current`
@@ -421,8 +441,8 @@ catalog even where there isn't a strict one-to-one match to a keybinding name.
 | `zoom` | `Pane: Toggle zoom` |
 | `resize_mode` | per-direction `Pane: Resize` |
 | `focus_agent` | `Agent: Focus…` |
-| `previous_workspace`, `next_workspace` | served by `Workspace: Switch…` |
-| `previous_tab`, `next_tab` | served by `Tab: Switch…` |
+| `previous_workspace`, `next_workspace` | `Workspace: Previous`, `Workspace: Next` |
+| `previous_tab`, `next_tab` | `Tab: Previous`, `Tab: Next` |
 | `previous_agent`, `next_agent` | served by `Agent: Focus…` |
 
 The initial version does not cover the following operations.
@@ -431,7 +451,8 @@ The initial version does not cover the following operations.
 |---|---|---|
 | UI-internal operations | `help`, `settings`, `detach`, `open_notification_target`, `goto`, `edit_scrollback`, `toggle_sidebar` | No matching request in herdr 0.8.0's public CLI or socket API schema |
 | Temporary UI modes | `resize_mode` itself, navigate-mode operations | Direct per-direction operations are offered instead of opening a mode |
-| History or ordering | `cycle_pane_next`, `cycle_pane_previous`, `last_pane` | No equivalent ordering operation in the public CLI; would need additional state management |
+| Pane cycling | `cycle_pane_next`, `cycle_pane_previous` | Protocol 19 exposes raw `pane.focus`, but the public CLI has no arbitrary-ID focus wrapper; support needs a separate socket execution path |
+| Focus history | `last_pane` | The public CLI does not expose focus history |
 | Worktree | `new_worktree`, `open_worktree`, `remove_worktree` | Filesystem side effects and extra confirmation are handled in a separate design |
 | Remote | `remote_image_paste` | Remote-client-specific input handling, not a built-in operation of the socket CLI |
 
@@ -484,11 +505,12 @@ The validation conditions are:
 - `arguments` is an array.
 - Each argument's `source` is one of `literal`, `context`, `input`, or `select`.
 - Each source has its required fields present and no disallowed fields.
-- `context.key` and `input.default_context` are allowed context keys.
+- `context.key` is a static or computed argument context key.
+- `input.default_context` is a static context key.
 - `input.required` is a boolean.
 - `input.validation` is unspecified or `directory`.
 - `select.selector` is an allowed selector.
-- `select.exclude_context` is unspecified or an allowed context key.
+- `select.exclude_context` is unspecified or a static context key.
 - `confirm` is unspecified or a non-empty string.
 - Definition strings contain no NUL (which cannot pass through a shell) and no newline (which
   would break the display).
@@ -539,8 +561,8 @@ following:
    actually returns that subcommand's help (a `Usage: herdr <group> <sub>` line). An unknown
    group still falls back to the top-level help with exit code 0, so exit code alone cannot
    decide this.
-4. Checks `workspace list`, `tab list`, and `agent list` — used by the named selectors — the
-   same way.
+4. Checks `workspace list`, `tab list`, and `agent list` — used by named selectors or computed
+   context — the same way.
 5. For every command, confirms its resolved argv supplies positional arguments compatible in
    both count and name with what `herdr <group> <subcommand> -h`'s Usage line requires.
    Required positionals appear as bare `<NAME>` tokens (optionally suffixed `...` for
@@ -552,12 +574,12 @@ following:
    flags take a value), and treats what's left as the supplied positionals. Their count must
    match what the Usage line requires (exactly, unless a trailing `...` or optional positional
    allows more), and each one's name must be compatible with its expected placeholder, using
-   this mapping (verified against herdr 0.8.0's help text for all 27 commands, 2026-08-16):
+   this mapping (verified against herdr 0.8.0's help text for all 31 commands, 2026-08-16):
 
    | argument source | maps to placeholder |
    |---|---|
-   | `context.key: workspace_id` / `select.selector: workspaces` | `workspace_id` |
-   | `context.key: tab_id` / `select.selector: tabs` | `tab_id` |
+   | `context.key: workspace_id`, `next_workspace_id`, or `previous_workspace_id` / `select.selector: workspaces` | `workspace_id` |
+   | `context.key: tab_id`, `next_tab_id`, or `previous_tab_id` / `select.selector: tabs` | `tab_id` |
    | `context.key: pane_id` | `pane_id` |
    | `select.selector: agents` | `target` (herdr accepts a pane id for `agent focus <target>`; see `herdr --skill`) |
    | `input`, or a non-flag `literal` value | matches any placeholder (free text; count is still enforced) |
@@ -637,6 +659,10 @@ never reads a user-supplied catalog, the README does not present `commands.json`
 user-facing configuration feature.
 
 ## Future work
+
+Add `Pane: Next` and `Pane: Previous` through a separately designed raw-socket execution path,
+or after herdr adds a public CLI wrapper for `pane.focus`. The socket version must define pane
+ordering and validate the same request/response framing that herdr plugins use.
 
 Save up to 10 recently run commands so they're easier to find in the palette next time.
 

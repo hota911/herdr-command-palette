@@ -25,8 +25,8 @@ command below. Fuzzy-search or arrow-select the one you want and hit enter.
 
 ## Available commands
 
-- **Workspace:** Switch…, New…, Rename current, Close current
-- **Tab:** Switch…, New, Rename current, Close current
+- **Workspace:** Switch…, Next, Previous, New…, Rename current, Close current
+- **Tab:** Switch…, Next, Previous, New, Rename current, Close current
 - **Pane:** Rename current, Close current, Toggle zoom, Focus left/right/up/down, Split
   right/down, Swap left/right/up/down, Resize left/right/up/down
 - **Agent:** Focus…
@@ -44,7 +44,8 @@ no equivalent here:
 |---|---|
 | `help`, `settings`, `detach`, `open_notification_target`, `goto`, `edit_scrollback`, `toggle_sidebar` | No matching request in herdr's public CLI or socket API |
 | `resize_mode` (as a mode), navigate mode | This palette offers direct per-direction commands instead of opening a mode |
-| `cycle_pane_next`, `cycle_pane_previous`, `last_pane` | No equivalent ordering operation in the public CLI |
+| `cycle_pane_next`, `cycle_pane_previous` | The socket API can focus an arbitrary pane ID, but the public CLI has no wrapper; support needs a separate raw-socket execution path |
+| `last_pane` | Requires focus history that the public CLI does not expose |
 | `new_worktree`, `open_worktree`, `remove_worktree` | Filesystem side effects and extra confirmation need separate design |
 | `remote_image_paste` | Remote-client-specific input handling, not a socket CLI operation |
 

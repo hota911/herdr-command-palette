@@ -22,8 +22,8 @@ herdr の組み込み操作（Workspace / Tab / Pane / Agent / Config）を fzf 
 
 ## 利用できるコマンド
 
-- **Workspace:** 切り替え、新規作成、現在の workspace をリネーム、現在の workspace を閉じる
-- **Tab:** 切り替え、新規作成、現在のタブをリネーム、現在のタブを閉じる
+- **Workspace:** 切り替え、次へ、前へ、新規作成、現在の workspace をリネーム、現在の workspace を閉じる
+- **Tab:** 切り替え、次へ、前へ、新規作成、現在のタブをリネーム、現在のタブを閉じる
 - **Pane:** 現在の pane をリネーム、現在の pane を閉じる、ズームの切り替え、左右上下へのフォーカ
   ス移動、右/下への分割、左右上下への入れ替え、左右上下へのリサイズ
 - **Agent:** フォーカス
@@ -41,7 +41,8 @@ herdr の組み込み操作（Workspace / Tab / Pane / Agent / Config）を fzf 
 |---|---|
 | `help`、`settings`、`detach`、`open_notification_target`、`goto`、`edit_scrollback`、`toggle_sidebar` | herdr の公開 CLI と socket API に対応する request がない |
 | `resize_mode`（モードとして）、navigate mode | モードを開く代わりに、方向別の直接操作を提供する |
-| `cycle_pane_next`、`cycle_pane_previous`、`last_pane` | 公開 CLI に同等の順序操作がない |
+| `cycle_pane_next`、`cycle_pane_previous` | socket API は任意の pane ID をフォーカスできるが、公開 CLI に対応するコマンドがない。対応には raw socket 用の実行経路が必要になる |
+| `last_pane` | 公開 CLI が提供しないフォーカス履歴を必要とする |
 | `new_worktree`、`open_worktree`、`remove_worktree` | ファイルシステムへの副作用と追加確認を別設計で扱う必要がある |
 | `remote_image_paste` | remote client 固有の入力処理であり、socket CLI の操作ではない |
 
