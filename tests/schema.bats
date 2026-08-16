@@ -23,6 +23,23 @@ check_jsonschema() {
   [ "$status" -eq 0 ]
 }
 
+@test "accepts computed context keys as command arguments" {
+  run check_jsonschema "$ROOT/tests/fixtures/schema/valid-computed-context.json"
+  [ "$status" -eq 0 ]
+}
+
+@test "rejects a computed context key as an input default" {
+  run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-computed-default-context.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'next_tab_id'* ]]
+}
+
+@test "rejects a computed context key as a selector exclusion" {
+  run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-computed-exclude-context.json"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *'next_workspace_id'* ]]
+}
+
 @test "rejects an argument with an unknown source" {
   run check_jsonschema "$ROOT/tests/fixtures/schema/invalid-unknown-source.json"
   [ "$status" -ne 0 ]

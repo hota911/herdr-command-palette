@@ -176,3 +176,47 @@ run_navigation() {
   [ "$(sed -n '1p' "$HERDR_STUB_CALLS")" = "tab list --workspace w1" ]
   [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t2" ]
 }
+
+@test "the real catalog wires Workspace Next to next_workspace_id" {
+  export HERDR_PLUGIN_ROOT="$ROOT"
+  export FZF_STUB_SELECT_ID="workspace.next"
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":"w2","label":"two"}]}}'
+
+  run bash "$ROOT/palette.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "workspace focus w2" ]
+}
+
+@test "the real catalog wires Workspace Previous to previous_workspace_id" {
+  export HERDR_PLUGIN_ROOT="$ROOT"
+  export FZF_STUB_SELECT_ID="workspace.previous"
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":"w2","label":"two"}]}}'
+
+  run bash "$ROOT/palette.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "workspace focus w2" ]
+}
+
+@test "the real catalog wires Tab Next to next_tab_id" {
+  export HERDR_PLUGIN_ROOT="$ROOT"
+  export FZF_STUB_SELECT_ID="tab.next"
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run bash "$ROOT/palette.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t3" ]
+}
+
+@test "the real catalog wires Tab Previous to previous_tab_id" {
+  export HERDR_PLUGIN_ROOT="$ROOT"
+  export FZF_STUB_SELECT_ID="tab.previous"
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run bash "$ROOT/palette.sh"
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t1" ]
+}

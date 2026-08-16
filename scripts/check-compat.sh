@@ -197,8 +197,10 @@ get_subcommand_help agent list
 # Name compatibility mapping (verified against herdr 0.8.0's help text for
 # all 27 commands, 2026-08-16; see docs/design/command-catalog.md,
 # "Compatibility checks"):
-#   context.key workspace_id / select.selector workspaces -> workspace_id
-#   context.key tab_id       / select.selector tabs        -> tab_id
+#   context.key workspace_id / next_workspace_id /
+#     previous_workspace_id / select.selector workspaces   -> workspace_id
+#   context.key tab_id / next_tab_id / previous_tab_id /
+#     select.selector tabs                                 -> tab_id
 #   context.key pane_id                                    -> pane_id
 #   select.selector agents                                 -> target (herdr
 #     accepts a pane id for `agent focus <target>`; see `herdr --skill`)
@@ -327,7 +329,13 @@ compute_supplied_positionals() {
         if (.value | startswith("--")) then "FLAG:" + .value
         else "OTHER:any"
         end
-      elif .source == "context" then "OTHER:" + .key
+      elif .source == "context" then
+        "OTHER:" + (
+          if (.key == "next_workspace_id" or .key == "previous_workspace_id") then "workspace_id"
+          elif (.key == "next_tab_id" or .key == "previous_tab_id") then "tab_id"
+          else .key
+          end
+        )
       elif .source == "input" then "OTHER:any"
       elif .source == "select" then
         "OTHER:" + (

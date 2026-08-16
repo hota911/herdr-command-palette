@@ -21,8 +21,20 @@
     }
   },
   "$defs": {
-    "contextKey": {
+    "staticContextKey": {
       "enum": ["pane_id", "tab_id", "workspace_id", "cwd"]
+    },
+    "argumentContextKey": {
+      "enum": [
+        "pane_id",
+        "tab_id",
+        "workspace_id",
+        "cwd",
+        "next_workspace_id",
+        "previous_workspace_id",
+        "next_tab_id",
+        "previous_tab_id"
+      ]
     },
     "selector": {
       "enum": ["workspaces", "tabs", "agents"]
@@ -90,7 +102,7 @@
       "required": ["source", "key"],
       "properties": {
         "source": { "const": "context" },
-        "key": { "$ref": "#/$defs/contextKey" }
+        "key": { "$ref": "#/$defs/argumentContextKey" }
       }
     },
     "argumentInput": {
@@ -102,7 +114,7 @@
         "prompt": { "$ref": "#/$defs/nonEmptySafeString" },
         "description": { "$ref": "#/$defs/safeString" },
         "required": { "type": "boolean" },
-        "default_context": { "$ref": "#/$defs/contextKey" },
+        "default_context": { "$ref": "#/$defs/staticContextKey" },
         "validation": { "const": "directory" }
       }
     },
@@ -115,7 +127,7 @@
         "selector": { "$ref": "#/$defs/selector" },
         "prompt": { "$ref": "#/$defs/nonEmptySafeString" },
         "description": { "$ref": "#/$defs/safeString" },
-        "exclude_context": { "$ref": "#/$defs/contextKey" }
+        "exclude_context": { "$ref": "#/$defs/staticContextKey" }
       }
     }
   }
