@@ -59,6 +59,24 @@ resolve_computed_context() {
       raw=$("$herdr_bin" workspace list 2>&1)
       rc=$?
       ;;
+    next_tab_id)
+      direction="next"
+      list_desc="tab list"
+      collection="tabs"
+      id_field="tab_id"
+      origin_id="$ORIGIN_TAB_ID"
+      raw=$("$herdr_bin" tab list --workspace "$ORIGIN_WORKSPACE_ID" 2>&1)
+      rc=$?
+      ;;
+    previous_tab_id)
+      direction="previous"
+      list_desc="tab list"
+      collection="tabs"
+      id_field="tab_id"
+      origin_id="$ORIGIN_TAB_ID"
+      raw=$("$herdr_bin" tab list --workspace "$ORIGIN_WORKSPACE_ID" 2>&1)
+      rc=$?
+      ;;
     *)
       return 1
       ;;
@@ -176,7 +194,7 @@ while [ "$i" -lt "$argc" ]; do
     context)
       key=$(jq -r '.key' <<<"$arg_def")
       case "$key" in
-        next_workspace_id|previous_workspace_id)
+        next_workspace_id|previous_workspace_id|next_tab_id|previous_tab_id)
           resolve_computed_context "$key"
           ;;
         *)

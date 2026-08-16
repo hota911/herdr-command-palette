@@ -126,3 +126,53 @@ run_navigation() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"command-palette: herdr workspace list did not include the origin workspace_id"* ]]
 }
+
+@test "next tab focuses the following tab within the origin workspace" {
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run_navigation tab next_tab_id
+
+  [ "$status" -eq 0 ]
+  [ "$(sed -n '1p' "$HERDR_STUB_CALLS")" = "tab list --workspace w1" ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t3" ]
+}
+
+@test "previous tab focuses the preceding tab within the origin workspace" {
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run_navigation tab previous_tab_id
+
+  [ "$status" -eq 0 ]
+  [ "$(sed -n '1p' "$HERDR_STUB_CALLS")" = "tab list --workspace w1" ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t1" ]
+}
+
+@test "next tab wraps from the last tab to the first" {
+  export ORIGIN_TAB_ID="w1:t3"
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run_navigation tab next_tab_id
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t1" ]
+}
+
+@test "previous tab wraps from the first tab to the last" {
+  export ORIGIN_TAB_ID="w1:t1"
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t1","workspace_id":"w1","label":"one"},{"tab_id":"w1:t2","workspace_id":"w1","label":"two"},{"tab_id":"w1:t3","workspace_id":"w1","label":"three"}]}}'
+
+  run_navigation tab previous_tab_id
+
+  [ "$status" -eq 0 ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t3" ]
+}
+
+@test "a single tab resolves to itself" {
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t2","workspace_id":"w1","label":"two"}]}}'
+
+  run_navigation tab next_tab_id
+
+  [ "$status" -eq 0 ]
+  [ "$(sed -n '1p' "$HERDR_STUB_CALLS")" = "tab list --workspace w1" ]
+  [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t2" ]
+}
