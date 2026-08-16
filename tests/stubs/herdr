@@ -20,10 +20,20 @@
 # Env vars:
 #   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 19)
 #   HERDR_STUB_VERSION   — version string `--version` reports (default 0.8.0)
+#   HERDR_STUB_CALLS     — optional file receiving runtime calls, one per line
+#   HERDR_STUB_*_LIST_JSON — JSON returned by runtime workspace/tab list calls
+#   HERDR_STUB_LIST_STATUS — nonzero status for runtime list calls
+#   HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE — omit --workspace from tab list help
 set -uo pipefail
 
 protocol="${HERDR_STUB_PROTOCOL:-19}"
 version="${HERDR_STUB_VERSION:-0.8.0}"
+
+record_call() {
+  if [ -n "${HERDR_STUB_CALLS:-}" ]; then
+    printf '%s\n' "$*" >>"$HERDR_STUB_CALLS"
+  fi
+}
 
 top_level_help() {
   cat <<'EOF'
@@ -217,6 +227,39 @@ EOF
   exit 0
 fi
 
+# Runtime behavior used by palette.bats. Help calls continue into the case
+# statement below so compatibility tests still receive the captured CLI help.
+if [ "${1:-} ${2:-}" = "workspace list" ] && [ "$#" -eq 2 ]; then
+  record_call "$@"
+  if [ "${HERDR_STUB_LIST_STATUS:-0}" -ne 0 ]; then
+    printf '%s\n' "${HERDR_STUB_LIST_ERROR:-workspace list error}" >&2
+    exit "$HERDR_STUB_LIST_STATUS"
+  fi
+  workspace_list_json="${HERDR_STUB_WORKSPACE_LIST_JSON:-}"
+  [ -n "$workspace_list_json" ] || workspace_list_json='{"result":{"workspaces":[]}}'
+  printf '%s\n' "$workspace_list_json"
+  exit 0
+fi
+
+if [ "${1:-} ${2:-}" = "tab list" ] && [ "${3:-}" = "--workspace" ] && [ "$#" -eq 4 ]; then
+  record_call "$@"
+  if [ "${HERDR_STUB_LIST_STATUS:-0}" -ne 0 ]; then
+    printf '%s\n' "${HERDR_STUB_LIST_ERROR:-tab list error}" >&2
+    exit "$HERDR_STUB_LIST_STATUS"
+  fi
+  tab_list_json="${HERDR_STUB_TAB_LIST_JSON:-}"
+  [ -n "$tab_list_json" ] || tab_list_json='{"result":{"tabs":[]}}'
+  printf '%s\n' "$tab_list_json"
+  exit 0
+fi
+
+if { [ "${1:-} ${2:-}" = "workspace focus" ] || [ "${1:-} ${2:-}" = "tab focus" ]; } \
+  && [ "${3:-}" != "-h" ]; then
+  record_call "$@"
+  printf '%s\n' '{"result":{}}'
+  exit 0
+fi
+
 pair="${1:-} ${2:-}"
 case "$pair" in
   "workspace focus")
@@ -340,7 +383,14 @@ EOF
     exit 0
     ;;
   "tab list")
-    cat <<'EOF'
+    if [ "${HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE:-0}" -eq 1 ]; then
+      cat <<'EOF'
+List tabs
+
+Usage: herdr tab list
+EOF
+    else
+      cat <<'EOF'
 List tabs
 
 Usage: herdr tab list [OPTIONS]
@@ -348,6 +398,7 @@ Usage: herdr tab list [OPTIONS]
 Options:
       --workspace <WORKSPACE_ID>
 EOF
+    fi
     exit 0
     ;;
   "pane rename")

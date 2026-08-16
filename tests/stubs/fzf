@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Most palette tests provide one command. Catalog-integration tests name the
+# exact command to select so a missing or mistyped catalog ID is observable.
+if [ -n "${FZF_STUB_SELECT_ID:-}" ]; then
+  awk -F '\t' -v id="$FZF_STUB_SELECT_ID" '$1 == id { print; exit }'
+else
+  sed -n '1p'
+fi

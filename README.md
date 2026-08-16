@@ -25,8 +25,8 @@ command below. Fuzzy-search or arrow-select the one you want and hit enter.
 
 ## Available commands
 
-- **Workspace:** Switch…, New…, Rename current, Close current
-- **Tab:** Switch…, New, Rename current, Close current
+- **Workspace:** Switch…, Next, Previous, New…, Rename current, Close current
+- **Tab:** Switch…, Next, Previous, New, Rename current, Close current
 - **Pane:** Rename current, Close current, Toggle zoom, Focus left/right/up/down, Split
   right/down, Swap left/right/up/down, Resize left/right/up/down
 - **Agent:** Focus…

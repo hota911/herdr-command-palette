@@ -17,6 +17,24 @@
       ]
     },
     {
+      "id": "workspace.next",
+      "title": "Workspace: Next",
+      "description": "Focus the next workspace, wrapping after the last.",
+      "command": ["workspace", "focus"],
+      "arguments": [
+        { "source": "context", "key": "next_workspace_id" }
+      ]
+    },
+    {
+      "id": "workspace.previous",
+      "title": "Workspace: Previous",
+      "description": "Focus the previous workspace, wrapping before the first.",
+      "command": ["workspace", "focus"],
+      "arguments": [
+        { "source": "context", "key": "previous_workspace_id" }
+      ]
+    },
+    {
       "id": "workspace.new",
       "title": "Workspace: New…",
       "description": "Create and focus a workspace in the selected directory.",
@@ -71,6 +89,24 @@
           "prompt": "tab ▸ ",
           "exclude_context": "tab_id"
         }
+      ]
+    },
+    {
+      "id": "tab.next",
+      "title": "Tab: Next",
+      "description": "Focus the next tab in the current workspace, wrapping after the last.",
+      "command": ["tab", "focus"],
+      "arguments": [
+        { "source": "context", "key": "next_tab_id" }
+      ]
+    },
+    {
+      "id": "tab.previous",
+      "title": "Tab: Previous",
+      "description": "Focus the previous tab in the current workspace, wrapping before the first.",
+      "command": ["tab", "focus"],
+      "arguments": [
+        { "source": "context", "key": "previous_tab_id" }
       ]
     },
     {
