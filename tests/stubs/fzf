@@ -1,7 +1,23 @@
 #!/usr/bin/env bash
 # Most palette tests provide one command. Catalog-integration tests name the
 # exact command to select so a missing or mistyped catalog ID is observable.
-if [ -n "${FZF_STUB_SELECT_ID:-}" ]; then
+# Inputs are keyed by prompt; list selectors pick the first candidate so tests
+# can prove that origin exclusions were applied before fzf was called.
+print_query=0
+prompt=""
+for arg in "$@"; do
+  case "$arg" in
+    --print-query) print_query=1 ;;
+    --prompt=*) prompt="${arg#--prompt=}" ;;
+  esac
+done
+
+if [ "$print_query" -eq 1 ]; then
+  printf '%s\n' "${FZF_STUB_INPUTS_JSON:-}" | jq -r --arg prompt "$prompt" '.[$prompt] // ""'
+  exit 1 # --print-query with no candidates still returns the query.
+fi
+
+if [ "$prompt" = "herdr > " ] && [ -n "${FZF_STUB_SELECT_ID:-}" ]; then
   awk -F '\t' -v id="$FZF_STUB_SELECT_ID" '$1 == id { print; exit }'
 else
   sed -n '1p'

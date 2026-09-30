@@ -12,11 +12,24 @@ setup() {
   export HERDR_PLUGIN_ROOT="$TEST_PLUGIN_ROOT"
   export HERDR_BIN_PATH="$ROOT/tests/stubs/herdr"
   export HERDR_STUB_CALLS="$BATS_TEST_TMPDIR/herdr-calls"
+  export HERDR_STUB_ARGV_CALLS="$BATS_TEST_TMPDIR/herdr-argv"
   export ORIGIN_PANE_ID="w1:p1"
   export ORIGIN_TAB_ID="w1:t2"
   export ORIGIN_WORKSPACE_ID="w1"
   export ORIGIN_CWD="$BATS_TEST_TMPDIR"
   export PATH="$ROOT/tests/stubs:$PATH"
+}
+
+run_catalog_command() {
+  export HERDR_PLUGIN_ROOT="$ROOT"
+  export FZF_STUB_SELECT_ID="$1"
+  run bash "$ROOT/palette.sh"
+}
+
+assert_last_argv() {
+  local expected
+  expected=$(jq -cn --args '$ARGS.positional' -- "$@")
+  [ "$(tail -n 1 "$HERDR_STUB_ARGV_CALLS")" = "$expected" ]
 }
 
 write_navigation_catalog() {
@@ -237,4 +250,137 @@ run_navigation() {
 
   [ "$status" -eq 0 ]
   [ "$(tail -n 1 "$HERDR_STUB_CALLS")" = "tab focus w1:t1" ]
+}
+
+@test "the real catalog creates a workspace with a directory and label" {
+  local directory="$BATS_TEST_TMPDIR/directory with spaces"
+  mkdir -p "$directory"
+  FZF_STUB_INPUTS_JSON=$(jq -cn --arg dir "$directory" \
+    '{"workspace directory ▸ ": $dir, "new workspace label ▸ ": "work queue; $(noop)"}')
+  export FZF_STUB_INPUTS_JSON
+
+  run_catalog_command workspace.new.labeled
+
+  [ "$status" -eq 0 ]
+  assert_last_argv workspace create --cwd "$directory" --label 'work queue; $(noop)' --focus
+}
+
+@test "the real catalog creates a labeled tab in the origin workspace" {
+  export FZF_STUB_INPUTS_JSON='{"new tab label ▸ ":"review queue"}'
+
+  run_catalog_command tab.new.labeled
+
+  [ "$status" -eq 0 ]
+  assert_last_argv tab create --workspace w1 --label "review queue" --focus
+}
+
+@test "the real catalog clears the origin pane label" {
+  run_catalog_command pane.rename.clear
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane rename w1:p1 --clear
+}
+
+@test "the real catalog moves the origin pane to a new tab" {
+  run_catalog_command pane.move.new-tab
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --new-tab --focus
+}
+
+@test "the real catalog moves the origin pane to a new workspace" {
+  run_catalog_command pane.move.new-workspace
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --new-workspace --focus
+}
+
+@test "the real catalog moves the origin pane to a new labeled workspace" {
+  export FZF_STUB_INPUTS_JSON='{"new workspace label ▸ ":"review queue"}'
+
+  run_catalog_command pane.move.new-workspace.labeled
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --new-workspace --label "review queue" --focus
+}
+
+@test "the real catalog moves the origin pane to another workspace excluding the origin" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":"w2","label":"two"}]}}'
+
+  run_catalog_command pane.move.workspace
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --new-tab --workspace w2 --focus
+}
+
+@test "the real catalog moves the origin pane to a right split excluding the origin tab" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":"w2","label":"two"}]}}'
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t2","workspace_id":"w1","label":"origin"},{"tab_id":"w2:t1","workspace_id":"w2","label":"target"}]}}'
+
+  run_catalog_command pane.move.tab.right
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --tab w2:t1 --split right --focus
+}
+
+@test "the real catalog moves the origin pane to a down split excluding the origin tab" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"},{"workspace_id":"w2","label":"two"}]}}'
+  export HERDR_STUB_TAB_LIST_JSON='{"result":{"tabs":[{"tab_id":"w1:t2","workspace_id":"w1","label":"origin"},{"tab_id":"w2:t1","workspace_id":"w2","label":"target"}]}}'
+
+  run_catalog_command pane.move.tab.down
+
+  [ "$status" -eq 0 ]
+  assert_last_argv pane move w1:p1 --tab w2:t1 --split down --focus
+}
+
+@test "the real catalog renames a selected agent without excluding the origin pane" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"}]}}'
+  export HERDR_STUB_AGENT_LIST_JSON='{"result":{"agents":[{"pane_id":"w1:p1","workspace_id":"w1","terminal_title_stripped":"origin"},{"pane_id":"w1:p2","workspace_id":"w1","terminal_title_stripped":"other"}]}}'
+  export FZF_STUB_INPUTS_JSON='{"new agent name ▸ ":"reviewer-2"}'
+
+  run_catalog_command agent.rename
+
+  [ "$status" -eq 0 ]
+  assert_last_argv agent rename w1:p1 reviewer-2
+}
+
+@test "the real catalog sends a literal prompt to an agent excluding the origin pane" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"}]}}'
+  export HERDR_STUB_AGENT_LIST_JSON='{"result":{"agents":[{"pane_id":"w1:p1","workspace_id":"w1","terminal_title_stripped":"origin"},{"pane_id":"w1:p2","workspace_id":"w1","terminal_title_stripped":"other"}]}}'
+  export FZF_STUB_INPUTS_JSON='{"agent prompt ▸ ":"review \"this\"; $(noop) --flag"}'
+
+  run_catalog_command agent.prompt
+
+  [ "$status" -eq 0 ]
+  assert_last_argv agent prompt w1:p2 'review "this"; $(noop) --flag'
+}
+
+@test "labeled workspace creation rejects an invalid directory before creating anything" {
+  FZF_STUB_INPUTS_JSON=$(jq -cn --arg dir "$BATS_TEST_TMPDIR/missing" \
+    '{"workspace directory ▸ ": $dir, "new workspace label ▸ ": "review queue"}')
+  export FZF_STUB_INPUTS_JSON
+
+  run_catalog_command workspace.new.labeled
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"input is not an existing directory"* ]]
+  [ ! -e "$HERDR_STUB_ARGV_CALLS" ]
+}
+
+@test "new catalog inputs cancel when the required label name or prompt is empty" {
+  export HERDR_STUB_WORKSPACE_LIST_JSON='{"result":{"workspaces":[{"workspace_id":"w1","label":"one"}]}}'
+  export HERDR_STUB_AGENT_LIST_JSON='{"result":{"agents":[{"pane_id":"w1:p2","workspace_id":"w1","terminal_title_stripped":"other"}]}}'
+  FZF_STUB_INPUTS_JSON=$(jq -cn --arg dir "$BATS_TEST_TMPDIR" '{"workspace directory ▸ ": $dir}')
+  export FZF_STUB_INPUTS_JSON
+
+  local id
+  for id in workspace.new.labeled tab.new.labeled pane.move.new-workspace.labeled agent.rename agent.prompt; do
+    export HERDR_STUB_ARGV_CALLS="$BATS_TEST_TMPDIR/$id-argv"
+    run_catalog_command "$id"
+
+    [ "$status" -eq 0 ]
+    if [ -e "$HERDR_STUB_ARGV_CALLS" ]; then
+      jq -es 'all(.[]; .[1] == "list")' "$HERDR_STUB_ARGV_CALLS"
+    fi
+  done
 }
