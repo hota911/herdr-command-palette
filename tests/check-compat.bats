@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # scripts/check-compat.sh tests, driven against tests/stubs/herdr (a fake
-# herdr CLI reproducing real herdr 0.8.0 output shapes) via HERDR_BIN_PATH —
+# herdr CLI with a 0.8.0 help baseline and selected 0.9.1 captures) via HERDR_BIN_PATH —
 # see docs/design/command-catalog.md, "Compatibility checks".
 
 setup() {
@@ -8,6 +8,9 @@ setup() {
   ROOT="$(repo_root)"
   HERDR_BIN_PATH="$(herdr_stub)"
   export HERDR_BIN_PATH
+  # The deliberately altered fixture catalogs retain their 0.8.0 baseline.
+  export HERDR_STUB_PROTOCOL=19
+  export HERDR_STUB_VERSION=0.8.0
   FIXTURE_REPO=""
 }
 
@@ -18,9 +21,11 @@ teardown() {
 }
 
 @test "OK on the real catalog against the stub" {
+  export HERDR_STUB_PROTOCOL=22
+  export HERDR_STUB_VERSION=0.9.1
   run bash "$ROOT/scripts/check-compat.sh"
   [ "$status" -eq 0 ]
-  [[ "$output" == "OK: herdr 0.8.0 is compatible (protocol 19)" ]]
+  [[ "$output" == "OK: herdr 0.9.1 is compatible (protocol 22)" ]]
 }
 
 @test "OK when computed context keys supply focus positionals" {
@@ -31,6 +36,7 @@ teardown() {
 }
 
 @test "FAILs when tab list does not support workspace scoping" {
+  export HERDR_STUB_PROTOCOL=22
   HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE=1
   export HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE
   run bash "$ROOT/scripts/check-compat.sh"
@@ -43,7 +49,7 @@ teardown() {
   export HERDR_STUB_PROTOCOL
   run bash "$ROOT/scripts/check-compat.sh"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"protocol mismatch: commands.json expects 19, herdr reports 20"* ]]
+  [[ "$output" == *"protocol mismatch: commands.json expects 22, herdr reports 20"* ]]
 }
 
 @test "FAILs on a duplicate command id" {

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# herdr — a fake herdr CLI used only by tests/check-compat.bats, driven via
-# HERDR_BIN_PATH. It reproduces the exact output shapes of the real herdr
-# 0.8.0 CLI (`--version`, `api schema`, and `<group> <sub> -h` for every
-# subcommand referenced by commands.json) so scripts/check-compat.sh can be
-# exercised without a real herdr install. Text below was copied verbatim
-# from real herdr 0.8.0 output, captured 2026-08-16.
+# herdr — a fake herdr CLI used by the bats suite, driven via
+# HERDR_BIN_PATH. Version/protocol metadata defaults to herdr 0.9.1/22.
+# Help for `<group> <sub> -h` is based on herdr 0.8.0 so scripts/check-compat.sh
+# can be exercised without a real herdr install. Text below was copied verbatim
+# from real herdr 0.8.0 output, captured 2026-08-16. The pane move, agent rename,
+# and agent prompt help cases below were captured from herdr 0.9.1; agent prompt
+# has updated submission/wait semantics in its trailing help paragraph.
 #
 # herdr's actual "-h" fallback behavior (measured against real herdr 0.8.0,
 # 2026-08-16) has two distinct shapes, both reproduced below:
@@ -18,20 +19,24 @@
 # "Usage: herdr <group> <sub>" line (which neither fallback shape prints).
 #
 # Env vars:
-#   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 19)
-#   HERDR_STUB_VERSION   — version string `--version` reports (default 0.8.0)
+#   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 22)
+#   HERDR_STUB_VERSION   — version string `--version` reports (default 0.9.1)
 #   HERDR_STUB_CALLS     — optional file receiving runtime calls, one per line
-#   HERDR_STUB_*_LIST_JSON — JSON returned by runtime workspace/tab list calls
+#   HERDR_STUB_ARGV_CALLS — optional file receiving each runtime argv as a JSON array
+#   HERDR_STUB_*_LIST_JSON — JSON returned by runtime workspace/tab/agent list calls
 #   HERDR_STUB_LIST_STATUS — nonzero status for runtime list calls
 #   HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE — omit --workspace from tab list help
 set -uo pipefail
 
-protocol="${HERDR_STUB_PROTOCOL:-19}"
-version="${HERDR_STUB_VERSION:-0.8.0}"
+protocol="${HERDR_STUB_PROTOCOL:-22}"
+version="${HERDR_STUB_VERSION:-0.9.1}"
 
 record_call() {
   if [ -n "${HERDR_STUB_CALLS:-}" ]; then
     printf '%s\n' "$*" >>"$HERDR_STUB_CALLS"
+  fi
+  if [ -n "${HERDR_STUB_ARGV_CALLS:-}" ]; then
+    jq -cn --args '$ARGS.positional' -- "$@" >>"$HERDR_STUB_ARGV_CALLS"
   fi
 }
 
@@ -241,7 +246,8 @@ if [ "${1:-} ${2:-}" = "workspace list" ] && [ "$#" -eq 2 ]; then
   exit 0
 fi
 
-if [ "${1:-} ${2:-}" = "tab list" ] && [ "${3:-}" = "--workspace" ] && [ "$#" -eq 4 ]; then
+if [ "${1:-} ${2:-}" = "tab list" ] \
+  && { [ "$#" -eq 2 ] || { [ "${3:-}" = "--workspace" ] && [ "$#" -eq 4 ]; }; }; then
   record_call "$@"
   if [ "${HERDR_STUB_LIST_STATUS:-0}" -ne 0 ]; then
     printf '%s\n' "${HERDR_STUB_LIST_ERROR:-tab list error}" >&2
@@ -253,14 +259,29 @@ if [ "${1:-} ${2:-}" = "tab list" ] && [ "${3:-}" = "--workspace" ] && [ "$#" -e
   exit 0
 fi
 
-if { [ "${1:-} ${2:-}" = "workspace focus" ] || [ "${1:-} ${2:-}" = "tab focus" ]; } \
-  && [ "${3:-}" != "-h" ]; then
+if [ "${1:-} ${2:-}" = "agent list" ] && [ "$#" -eq 2 ]; then
   record_call "$@"
-  printf '%s\n' '{"result":{}}'
+  if [ "${HERDR_STUB_LIST_STATUS:-0}" -ne 0 ]; then
+    printf '%s\n' "${HERDR_STUB_LIST_ERROR:-agent list error}" >&2
+    exit "$HERDR_STUB_LIST_STATUS"
+  fi
+  agent_list_json="${HERDR_STUB_AGENT_LIST_JSON:-}"
+  [ -n "$agent_list_json" ] || agent_list_json='{"result":{"agents":[]}}'
+  printf '%s\n' "$agent_list_json"
   exit 0
 fi
 
 pair="${1:-} ${2:-}"
+if [ "${3:-}" != "-h" ] && [ "${3:-}" != "--help" ]; then
+  case "$pair" in
+    "workspace focus"|"tab focus"|"workspace create"|"tab create"|"pane rename"|"pane move"|"agent rename"|"agent prompt")
+      record_call "$@"
+      printf '%s\n' '{"result":{}}'
+      exit 0
+      ;;
+  esac
+fi
+
 case "$pair" in
   "workspace focus")
     cat <<'EOF'
@@ -516,6 +537,42 @@ Options:
 EOF
     exit 0
     ;;
+  "pane move")
+    # Captured from herdr 0.9.1; these options also exist in 0.8.0.
+    cat <<'EOF'
+Move a pane
+
+Usage: herdr pane move [OPTIONS] <PANE_ID>
+
+Arguments:
+  <PANE_ID>
+
+Options:
+      --tab <TAB_ID>
+
+      --split <DIRECTION>
+          [possible values: right, down]
+
+      --target-pane <ID>
+
+      --ratio <FLOAT>
+
+      --new-tab
+
+      --workspace <ID>
+
+      --new-workspace
+
+      --label <TEXT>
+
+      --tab-label <TEXT>
+
+      --focus
+
+      --no-focus
+EOF
+    exit 0
+    ;;
   "pane resize")
     cat <<'EOF'
 Resize a pane split
@@ -559,6 +616,51 @@ Usage: herdr agent focus <target>
 
 Arguments:
   <target>
+EOF
+    exit 0
+    ;;
+  "agent rename")
+    # Captured from herdr 0.9.1, including its alternative in the Usage line.
+    cat <<'EOF'
+Rename an agent
+
+Usage: herdr agent rename <TARGET> <NAME>|--clear
+
+Arguments:
+  <TARGET>
+
+  [NAME]
+
+Options:
+      --clear
+EOF
+    exit 0
+    ;;
+  "agent prompt")
+    # Captured from herdr 0.9.1; the final paragraph differs from 0.8.0.
+    cat <<'EOF'
+Submit a prompt to an agent
+
+Usage: herdr agent prompt <TARGET> <TEXT> [OPTIONS]
+
+Arguments:
+  <TARGET>
+
+  <TEXT>
+
+Options:
+      --wait
+          Wait for the first matching state observed after submission
+
+      --until <STATUS>
+          State to match after --wait; repeat for more than one state
+
+          [possible values: idle, working, blocked, done, unknown]
+
+      --timeout <MS>
+          Fail after this many milliseconds
+
+If the agent is already blocked, submission is rejected with agent_blocked before any input is sent. When an accepted submission starts from another non-working state, --wait requires an observed working or blocked state within 5000ms; otherwise it returns agent_prompt_stalled. A caller timeout that expires first returns timeout. It then matches idle, done, or blocked by default, or any exact --until state. It does not track turns: if the agent is already working, that active turn's completion may match.
 EOF
     exit 0
     ;;

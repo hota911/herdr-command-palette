@@ -77,7 +77,7 @@ The top level of `commands.json` has this shape:
 ```json
 {
   "schema_version": 1,
-  "expected_herdr_protocol": 19,
+  "expected_herdr_protocol": 22,
   "commands": []
 }
 ```
@@ -86,8 +86,9 @@ The top level of `commands.json` has this shape:
 value is `1`; `palette.sh` and the compatibility check accept only `1`.
 
 **`expected_herdr_protocol`**: the herdr socket API protocol this catalog assumes. The value
-confirmed on herdr 0.8.0 is `19`. `palette.sh` and the compatibility check both refer to this
-single value.
+confirmed on herdr 0.9.1 is `22` (herdr 0.8.0 reported `19`). `palette.sh` and the compatibility
+check both refer to this single value. The minimum herdr version remains 0.8.0; other protocol
+versions show a warning without blocking the palette.
 
 **`commands`**: an array of command definitions. The array order is fzf's initial display
 order.
@@ -363,8 +364,8 @@ Pane Swap defines one command per direction.
 
 ## Initial command list
 
-The initial version includes the following operations, all safely achievable via the public
-CLI.
+The catalog includes 42 commands: Workspace 7, Tab 7, Pane 24, Agent 3, and Config 1.
+All use the public CLI.
 
 ### Workspace
 
@@ -372,6 +373,7 @@ CLI.
 - `Workspace: Next`
 - `Workspace: Previous`
 - `Workspace: New…`
+- `Workspace: New with label…`
 - `Workspace: Rename current`
 - `Workspace: Close current`
 
@@ -381,12 +383,14 @@ CLI.
 - `Tab: Next`
 - `Tab: Previous`
 - `Tab: New`
+- `Tab: New with label…`
 - `Tab: Rename current`
 - `Tab: Close current`
 
 ### Pane
 
 - `Pane: Rename current`
+- `Pane: Clear label`
 - `Pane: Close current`
 - `Pane: Toggle zoom`
 - `Pane: Focus left`
@@ -399,6 +403,12 @@ CLI.
 - `Pane: Swap right`
 - `Pane: Swap up`
 - `Pane: Swap down`
+- `Pane: Move to new tab`
+- `Pane: Move to new workspace`
+- `Pane: Move to new workspace with label…`
+- `Pane: Move to workspace…`
+- `Pane: Move to tab (split right)…`
+- `Pane: Move to tab (split down)…`
 - `Pane: Resize left`
 - `Pane: Resize right`
 - `Pane: Resize up`
@@ -410,8 +420,11 @@ amount.
 ### Agent
 
 - `Agent: Focus…`
+- `Agent: Rename…`
+- `Agent: Send prompt…`
 
-The Agent selector passes the `pane_id` from `herdr agent list` to `herdr agent focus`.
+The Agent selector passes the `pane_id` from `herdr agent list` as the command's target.
+Focus and Send prompt exclude the origin pane; Rename includes it.
 
 ### Config
 
@@ -597,15 +610,15 @@ following:
    supplied positionals. Their count must be within what the Usage line allows (exactly the
    required count when there's no `[NAME]`/`...`; up to the required count plus one per
    non-variadic `[NAME]`; unbounded above the required count when `...` appears), and each
-   one's name must be compatible with its expected placeholder, using this mapping (verified
-   against herdr 0.8.0's help text for all 31 commands, 2026-08-16):
+   one's name must be compatible with its expected placeholder, using this mapping (the
+   original 31 commands were verified against herdr 0.8.0; all 42 against herdr 0.9.1):
 
    | argument source | maps to placeholder |
    |---|---|
    | `context.key: workspace_id`, `next_workspace_id`, or `previous_workspace_id` / `select.selector: workspaces` | `workspace_id` |
    | `context.key: tab_id`, `next_tab_id`, or `previous_tab_id` / `select.selector: tabs` | `tab_id` |
    | `context.key: pane_id` | `pane_id` |
-   | `select.selector: agents` | `target` (herdr accepts a pane id for `agent focus <target>`; see `herdr --skill`) |
+   | `select.selector: agents` | `target` (herdr accepts a pane id for `agent focus`, `agent rename`, and `agent prompt`; see `herdr --skill`) |
    | `input`, or a non-flag `literal` value | matches any placeholder (free text; count is still enforced) |
 
    The comparison is case-insensitive because herdr's own help text is inconsistent about it
@@ -641,7 +654,8 @@ Static verification runs:
 - `scripts/check-compat.sh`
 - `bats tests/`: schema-validation tests (the real catalog and a set of deliberately invalid
   fixtures under `tests/fixtures/schema/`) and `scripts/check-compat.sh` tests run against
-  `tests/stubs/herdr`, a fake herdr CLI reproducing real 0.8.0 output shapes, including both of
+  `tests/stubs/herdr`, a fake herdr CLI reproducing real 0.8.0 output shapes with `pane move`,
+  `agent rename`, and `agent prompt` help captured from 0.9.1, including both of
   its "-h" fallback shapes (an unrecognized group vs. an unrecognized subcommand within a known
   group), so each of `check-compat.sh`'s comparison-based FAIL paths (protocol mismatch,
   duplicate ids, both unknown-subcommand fallback shapes, missing/superstring flags, and

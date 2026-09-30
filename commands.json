@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "expected_herdr_protocol": 19,
+  "expected_herdr_protocol": 22,
   "commands": [
     {
       "id": "workspace.switch",
@@ -48,6 +48,30 @@
           "required": true,
           "default_context": "cwd",
           "validation": "directory"
+        },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "workspace.new.labeled",
+      "title": "Workspace: New with label…",
+      "description": "Create and focus a labeled workspace in the selected directory.",
+      "command": ["workspace", "create"],
+      "arguments": [
+        { "source": "literal", "value": "--cwd" },
+        {
+          "source": "input",
+          "prompt": "workspace directory ▸ ",
+          "description": "Enter an existing directory for the new workspace.",
+          "required": true,
+          "default_context": "cwd",
+          "validation": "directory"
+        },
+        { "source": "literal", "value": "--label" },
+        {
+          "source": "input",
+          "prompt": "new workspace label ▸ ",
+          "required": true
         },
         { "source": "literal", "value": "--focus" }
       ]
@@ -121,6 +145,23 @@
       ]
     },
     {
+      "id": "tab.new.labeled",
+      "title": "Tab: New with label…",
+      "description": "Create and focus a labeled tab in the workspace that opened the palette.",
+      "command": ["tab", "create"],
+      "arguments": [
+        { "source": "literal", "value": "--workspace" },
+        { "source": "context", "key": "workspace_id" },
+        { "source": "literal", "value": "--label" },
+        {
+          "source": "input",
+          "prompt": "new tab label ▸ ",
+          "required": true
+        },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
       "id": "tab.rename",
       "title": "Tab: Rename current",
       "description": "Enter a new label for the tab that opened the palette.",
@@ -158,6 +199,16 @@
           "description": "Enter a new label for the current pane.",
           "required": true
         }
+      ]
+    },
+    {
+      "id": "pane.rename.clear",
+      "title": "Pane: Clear label",
+      "description": "Clear the label of the pane that opened the palette.",
+      "command": ["pane", "rename"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--clear" }
       ]
     },
     {
@@ -302,6 +353,101 @@
       ]
     },
     {
+      "id": "pane.move.new-tab",
+      "title": "Pane: Move to new tab",
+      "description": "Move the pane that opened the palette to a new tab and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--new-tab" },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "pane.move.new-workspace",
+      "title": "Pane: Move to new workspace",
+      "description": "Move the pane that opened the palette to a new workspace and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--new-workspace" },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "pane.move.new-workspace.labeled",
+      "title": "Pane: Move to new workspace with label…",
+      "description": "Move the pane that opened the palette to a new labeled workspace and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--new-workspace" },
+        { "source": "literal", "value": "--label" },
+        {
+          "source": "input",
+          "prompt": "new workspace label ▸ ",
+          "required": true
+        },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "pane.move.workspace",
+      "title": "Pane: Move to workspace…",
+      "description": "Move the pane that opened the palette to a new tab in the selected workspace and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--new-tab" },
+        { "source": "literal", "value": "--workspace" },
+        {
+          "source": "select",
+          "selector": "workspaces",
+          "prompt": "workspace ▸ ",
+          "exclude_context": "workspace_id"
+        },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "pane.move.tab.right",
+      "title": "Pane: Move to tab (split right)…",
+      "description": "Move the pane that opened the palette into a right split in the selected tab and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--tab" },
+        {
+          "source": "select",
+          "selector": "tabs",
+          "prompt": "tab ▸ ",
+          "exclude_context": "tab_id"
+        },
+        { "source": "literal", "value": "--split" },
+        { "source": "literal", "value": "right" },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
+      "id": "pane.move.tab.down",
+      "title": "Pane: Move to tab (split down)…",
+      "description": "Move the pane that opened the palette into a down split in the selected tab and focus it.",
+      "command": ["pane", "move"],
+      "arguments": [
+        { "source": "context", "key": "pane_id" },
+        { "source": "literal", "value": "--tab" },
+        {
+          "source": "select",
+          "selector": "tabs",
+          "prompt": "tab ▸ ",
+          "exclude_context": "tab_id"
+        },
+        { "source": "literal", "value": "--split" },
+        { "source": "literal", "value": "down" },
+        { "source": "literal", "value": "--focus" }
+      ]
+    },
+    {
       "id": "pane.resize.left",
       "title": "Pane: Resize left",
       "description": "Resize the split to the left of the pane that opened the palette by the default amount.",
@@ -360,6 +506,43 @@
           "selector": "agents",
           "prompt": "agent ▸ ",
           "exclude_context": "pane_id"
+        }
+      ]
+    },
+    {
+      "id": "agent.rename",
+      "title": "Agent: Rename…",
+      "description": "Enter a new name for the selected agent.",
+      "command": ["agent", "rename"],
+      "arguments": [
+        {
+          "source": "select",
+          "selector": "agents",
+          "prompt": "agent ▸ "
+        },
+        {
+          "source": "input",
+          "prompt": "new agent name ▸ ",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "agent.prompt",
+      "title": "Agent: Send prompt…",
+      "description": "Send a prompt to a selected agent other than the pane that opened the palette.",
+      "command": ["agent", "prompt"],
+      "arguments": [
+        {
+          "source": "select",
+          "selector": "agents",
+          "prompt": "agent ▸ ",
+          "exclude_context": "pane_id"
+        },
+        {
+          "source": "input",
+          "prompt": "agent prompt ▸ ",
+          "required": true
         }
       ]
     },
