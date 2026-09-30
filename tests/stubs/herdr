@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # herdr — a fake herdr CLI used by the bats suite, driven via
-# HERDR_BIN_PATH. It reproduces the exact output shapes of the real herdr
-# 0.8.0 CLI (`--version`, `api schema`, and `<group> <sub> -h` for every
-# subcommand referenced by commands.json) so scripts/check-compat.sh can be
-# exercised without a real herdr install. Text below was copied verbatim
+# HERDR_BIN_PATH. Version/protocol metadata defaults to herdr 0.9.1/22.
+# Help for `<group> <sub> -h` is based on herdr 0.8.0 so scripts/check-compat.sh
+# can be exercised without a real herdr install. Text below was copied verbatim
 # from real herdr 0.8.0 output, captured 2026-08-16. The pane move, agent rename,
 # and agent prompt help cases below were captured from herdr 0.9.1; agent prompt
 # has updated submission/wait semantics in its trailing help paragraph.
@@ -20,8 +19,8 @@
 # "Usage: herdr <group> <sub>" line (which neither fallback shape prints).
 #
 # Env vars:
-#   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 19)
-#   HERDR_STUB_VERSION   — version string `--version` reports (default 0.8.0)
+#   HERDR_STUB_PROTOCOL  — protocol number `api schema` reports (default 22)
+#   HERDR_STUB_VERSION   — version string `--version` reports (default 0.9.1)
 #   HERDR_STUB_CALLS     — optional file receiving runtime calls, one per line
 #   HERDR_STUB_ARGV_CALLS — optional file receiving each runtime argv as a JSON array
 #   HERDR_STUB_*_LIST_JSON — JSON returned by runtime workspace/tab/agent list calls
@@ -29,8 +28,8 @@
 #   HERDR_STUB_TAB_LIST_WITHOUT_WORKSPACE — omit --workspace from tab list help
 set -uo pipefail
 
-protocol="${HERDR_STUB_PROTOCOL:-19}"
-version="${HERDR_STUB_VERSION:-0.8.0}"
+protocol="${HERDR_STUB_PROTOCOL:-22}"
+version="${HERDR_STUB_VERSION:-0.9.1}"
 
 record_call() {
   if [ -n "${HERDR_STUB_CALLS:-}" ]; then

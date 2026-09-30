@@ -9,6 +9,11 @@ for arg in "$@"; do
   case "$arg" in
     --print-query) print_query=1 ;;
     --prompt=*) prompt="${arg#--prompt=}" ;;
+    --header=*)
+      if [ -n "${FZF_STUB_HEADERS:-}" ]; then
+        printf '%s\n' "${arg#--header=}" >>"$FZF_STUB_HEADERS"
+      fi
+      ;;
   esac
 done
 

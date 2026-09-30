@@ -38,7 +38,7 @@ write_navigation_catalog() {
   jq -n --arg group "$group" --arg key "$key" '
     {
       schema_version: 1,
-      expected_herdr_protocol: 19,
+      expected_herdr_protocol: 22,
       commands: [{
         id: "navigation.test",
         title: "Navigation test",
@@ -353,6 +353,27 @@ run_navigation() {
 
   [ "$status" -eq 0 ]
   assert_last_argv agent prompt w1:p2 'review "this"; $(noop) --flag'
+}
+
+@test "the real catalog has no protocol warning against the current stub" {
+  export FZF_STUB_HEADERS="$BATS_TEST_TMPDIR/headers"
+
+  run_catalog_command pane.rename.clear
+
+  [ "$status" -eq 0 ]
+  [ "$(head -n 1 "$FZF_STUB_HEADERS")" = "herdr command palette" ]
+  assert_last_argv pane rename w1:p1 --clear
+}
+
+@test "an older protocol warns without blocking a real catalog command" {
+  export FZF_STUB_HEADERS="$BATS_TEST_TMPDIR/headers"
+  export HERDR_STUB_PROTOCOL=19
+
+  run_catalog_command pane.rename.clear
+
+  [ "$status" -eq 0 ]
+  [ "$(head -n 1 "$FZF_STUB_HEADERS")" = "warning: catalog expects herdr protocol 22, herdr reports 19" ]
+  assert_last_argv pane rename w1:p1 --clear
 }
 
 @test "labeled workspace creation rejects an invalid directory before creating anything" {

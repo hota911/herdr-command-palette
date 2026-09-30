@@ -77,7 +77,7 @@ The top level of `commands.json` has this shape:
 ```json
 {
   "schema_version": 1,
-  "expected_herdr_protocol": 19,
+  "expected_herdr_protocol": 22,
   "commands": []
 }
 ```
@@ -86,8 +86,9 @@ The top level of `commands.json` has this shape:
 value is `1`; `palette.sh` and the compatibility check accept only `1`.
 
 **`expected_herdr_protocol`**: the herdr socket API protocol this catalog assumes. The value
-confirmed on herdr 0.8.0 is `19`. `palette.sh` and the compatibility check both refer to this
-single value.
+confirmed on herdr 0.9.1 is `22` (herdr 0.8.0 reported `19`). `palette.sh` and the compatibility
+check both refer to this single value. The minimum herdr version remains 0.8.0; other protocol
+versions show a warning without blocking the palette.
 
 **`commands`**: an array of command definitions. The array order is fzf's initial display
 order.
