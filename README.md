@@ -25,15 +25,21 @@ command below. Fuzzy-search or arrow-select the one you want and hit enter.
 
 ## Available commands
 
-- **Workspace:** Switch…, Next, Previous, New…, Rename current, Close current
-- **Tab:** Switch…, Next, Previous, New, Rename current, Close current
-- **Pane:** Rename current, Close current, Toggle zoom, Focus left/right/up/down, Split
-  right/down, Swap left/right/up/down, Resize left/right/up/down
-- **Agent:** Focus…
+42 commands are available:
+
+- **Workspace:** Switch…, Next, Previous, New…, New with label…, Rename current, Close current
+- **Tab:** Switch…, Next, Previous, New, New with label…, Rename current, Close current
+- **Pane:** Rename current, Clear label, Close current, Toggle zoom, Focus left/right/up/down,
+  Split right/down, Swap left/right/up/down, Move to new tab, Move to new workspace,
+  Move to new workspace with label…, Move to workspace…, Move to tab (split right/down)…,
+  Resize left/right/up/down
+- **Agent:** Focus…, Rename…, Send prompt…
 - **Config:** Reload
 
 All commands act on the pane, tab, or workspace that opened the palette, except commands that
-target something else by design (e.g. `Workspace: Switch…`, `Agent: Focus…`).
+target something else by design (e.g. `Workspace: Switch…`, `Agent: Focus…`). Pane moves use
+that origin pane and select or create the destination. Agent rename and prompt commands act
+on the selected agent; Send prompt excludes the origin pane.
 
 ### Not covered
 
